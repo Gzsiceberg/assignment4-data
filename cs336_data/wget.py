@@ -188,6 +188,9 @@ async def main(input_file, output_file):
                 if not url or url.startswith("#"):
                     continue
 
+                if url.endswith(".pdf"):
+                    continue
+
                 stats["total"] += 1
 
                 # Create fetch task
