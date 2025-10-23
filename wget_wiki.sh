@@ -74,7 +74,6 @@ parallel -j "${PARALLEL_JOBS}" --lb --halt now,fail=1 '
   wget \
     --timeout=5 --tries=1 \
     --warc-file="${WARCS_DIR}/warc_{#}_${base}" \
-    --warc-compression=on \
     -q -i {} -O /dev/null
   status=$?
   if [ "$status" -eq 0 ]; then
