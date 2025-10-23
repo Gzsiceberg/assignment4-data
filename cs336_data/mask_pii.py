@@ -1,4 +1,4 @@
-import re
+import regex as re
 
 from cs336_data.extract_text import extract_warc
 
