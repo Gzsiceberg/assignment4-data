@@ -102,17 +102,13 @@ def write_record(
         protocol="HTTP/1.1",
     )
 
-    try:
-        req_record = writer.create_warc_record(
-            result.url,
-            record_type="request",
-            payload=BytesIO(b"GET " + result.url.encode("utf-8") + b" HTTP/1.1\r\n\r\n"),
-            http_headers=None,
-        )
-        writer.write_record(req_record)
-    except Exception as e:
-        print(f"[red]Failed to write request record for {result.url}: {e}[/red]")
-        return False
+    record = writer.create_warc_record(
+        result.url,
+        record_type="response",
+        payload=BytesIO(result.content),
+        http_headers=http_headers,
+    )
+    writer.write_record(record)
     return True
 
 
