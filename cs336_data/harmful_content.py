@@ -48,6 +48,8 @@ if __name__ == "__main__":
             payload = record.reader.read()
             text = extract_warc(payload)
             label, conf = classify_nsfw(text)
+            if label == "nsfw" and conf > 0.8:
+                harmful_count += 1
             if label == "nsfw" and count < 20:
                 print("-" * 80)
                 print(f"RecordID: {record.record_id} - NSFW Confidence: {conf:.4f}")
@@ -56,12 +58,14 @@ if __name__ == "__main__":
                 count += 1
                 continue
             label, conf = classify_toxicity(text)
+            if label == "toxic" and conf > 0.8:
+                harmful_count += 1
             if label == "toxic" and count < 20:
                 print("-" * 80)
                 print(f"RecordID: {record.record_id} - Toxic Confidence: {conf:.4f}")
                 text = text.replace("\n", " ")
                 print(text[:500])
                 count += 1
-            if i >= 10000:
+            if total_count >= 10000:
                 break
-    print(f"Processed {total_count} records, harmful_count={harmful_count}  percent={harmful_count / total_count * 100:.2f}%")
+    print(f"Processed {total_count} records, harmful_count={harmful_count}  percent={harmful_count / total_count * 100:.5f}%")
