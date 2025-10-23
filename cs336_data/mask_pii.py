@@ -1,5 +1,7 @@
 import re
 
+from cs336_data.extract_text import extract_warc
+
 def mask_email(text) -> tuple[str, int]:
     """Mask email addresses in the given text."""
     email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
@@ -56,3 +58,33 @@ if __name__ == "__main__":
     ip_text = "The server IPs are 192.168.1.1 and 10.0.0.1."
     masked_text_ip, num_masked_ip = mask_ip_addresses(ip_text)
     print(f"Masked Text: {masked_text_ip}, Number Masked: {num_masked_ip}")
+
+
+    from fastwarc.warc import ArchiveIterator, WarcRecordType
+    from rich.progress import track
+    from rich import print
+    import random
+    warc_path = "data/CC-MAIN-20250417135010-20250417165010-00065.warc.gz"
+    count = 0
+    is_english = 0
+    is_chinese = 0
+    total_records = 0
+    with open(warc_path, "rb") as f:
+        for i, record in enumerate(track(ArchiveIterator(f))):
+            if record.record_type != WarcRecordType.response:
+                continue
+            if random.random() > 0.05:
+                continue
+            payload = record.reader.read()
+            text = extract_warc(payload)
+            text, email_count = mask_email(text)
+            text, phone_count = mask_phone_numbers(text)
+            text, ip_count = mask_ip_addresses(text)
+            if email_count + phone_count + ip_count > 0 and count < 20:
+                print("-" * 80)
+                print(f"RecordID: {record.record_id} - Masked {email_count} emails, {phone_count} phone numbers, {ip_count} IP addresses")
+                text = text.replace("\n", " ")
+                print(text)
+                count += 1
+                if count >= 20:
+                    break
