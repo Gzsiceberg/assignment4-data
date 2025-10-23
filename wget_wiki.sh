@@ -72,7 +72,7 @@ parallel -j "${PARALLEL_JOBS}" --lb --halt now,fail=1 '
   base=$(basename {} .list);
   echo "[START] {#} -> ${WARCS_DIR}/warc_{#}_${base}.warc.gz"
   wget \
-    --timeout=5 --tries=1 \
+    --timeout=5 \
     --warc-file="${WARCS_DIR}/warc_{#}_${base}" \
     -q -i {} -O /dev/null
   status=$?
