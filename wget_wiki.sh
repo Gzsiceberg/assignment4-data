@@ -67,7 +67,7 @@ parallel -j "${PARALLEL_JOBS}" --lb '
   out="${WARCS_DIR}/warc_{#}_${base}"
   echo "[START] {#} -> ${out}.warc.gz"
   wget --timeout=5 --tries=1 \
-       --warc-file="${out}" '"${WARC_COMP_ARG}"' \
+       --warc-file="${out}" \
        -q -i {} -O /dev/null
   status=$?
   if [ "$status" -eq 0 ]; then
