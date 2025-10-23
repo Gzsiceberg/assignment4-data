@@ -18,6 +18,11 @@ def mask_phone_numbers(text) -> tuple[str, int]:
 
     return text, total_count
 
+def mask_ip_addresses(text) -> tuple[str, int]:
+    """Mask IP addresses in the given text."""
+    ip_pattern = r'\b(?:\d{1,3}\.){3}\d{1,3}\b'
+    return re.subn(ip_pattern, '|||IP_ADDRESS|||', text)
+
 
 if __name__ == "__main__":
     sample_text = "Contact us at forking@gmail.com"
@@ -47,3 +52,7 @@ if __name__ == "__main__":
     sample_text_phone4 = "You can dial (+33) 18155704487 or +53 181-5570-4487 for info."
     masked_text_phone4, num_masked_phone4 = mask_phone_numbers(sample_text_phone4)
     print(f"Masked Text: {masked_text_phone4}, Number Masked: {num_masked_phone4}")
+
+    ip_text = "The server IPs are 192.168.1.1 and 10.0.0.1."
+    masked_text_ip, num_masked_ip = mask_ip_addresses(ip_text)
+    print(f"Masked Text: {masked_text_ip}, Number Masked: {num_masked_ip}")
