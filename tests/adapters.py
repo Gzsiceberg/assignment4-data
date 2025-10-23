@@ -21,7 +21,8 @@ def run_mask_emails(text: str) -> tuple[str, int]:
 
 
 def run_mask_phone_numbers(text: str) -> tuple[str, int]:
-    raise NotImplementedError
+    from cs336_data.mask_pii import mask_phone_numbers
+    return mask_phone_numbers(text)
 
 
 def run_mask_ips(text: str) -> tuple[str, int]:
