@@ -94,6 +94,13 @@ def write_record(
             f"[yellow]Warning: Non-200 status for {result.url}: {status_code} {reason}[/yellow]"
         )
         return False
+    for header, value in result.headers or []:
+        try:
+            header.encode('ascii')
+            str(value).encode('ascii')
+        except UnicodeEncodeError:
+            print(f"[yellow]Warning: Non-ASCII header for {result.url}: {header}: {value}[/yellow]")
+            return False
 
     status_line = f"{status_code} {reason}".strip()
     http_headers = StatusAndHeaders(
