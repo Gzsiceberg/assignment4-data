@@ -20,6 +20,7 @@ if __name__ == "__main__":
     warc_path = "data/CC-MAIN-20250417135010-20250417165010-00065.warc.gz"
     count = 0
     is_english = 0
+    is_chinese = 0
     total_records = 0
     with open(warc_path, "rb") as f:
         for i, record in enumerate(track(ArchiveIterator(f))):
@@ -31,6 +32,8 @@ if __name__ == "__main__":
             total_records += 1
             if lang == "en":
                 is_english += 1
+            if lang == "zh":
+                is_chinese += 1
             if count < 20:
                 print("-" * 80)
                 print(f"RecordID: {record.record_id} - Detected language: {lang} with confidence {confidence}")
@@ -39,4 +42,4 @@ if __name__ == "__main__":
                 count += 1
             if total_records >= 10000:
                 break
-    print(f"Total records: {total_records}, English records: {is_english} percentage: {is_english / total_records:.2%}")
+    print(f"Total records: {total_records}, English records: {is_english} percentage: {is_english / total_records:.2%}, Chinese records: {is_chinese} percentage: {is_chinese / total_records:.2%}")
