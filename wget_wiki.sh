@@ -1,6 +1,6 @@
 #!/bin/bash
 input_file="subsample_urls_h100.txt"
-output_warc="subsampled_positive_urls.warc.gz"
+output_warc="subsampled_positive_urls"
 
 # get input file from command line argument if provided
 if [ $# -ge 1 ]; then
@@ -12,8 +12,8 @@ if [ $# -ge 2 ]; then
     output_warc="$2"
 fi
 
-wget2 --input-file="$input_file" \
-    --warc-file="$output_warc" \
+wget2 --input-file=$input_file \
+    --warc-file=$output_warc \
     --warc-compression=gzip \
     --http2 \
     --max-threads=32 \
