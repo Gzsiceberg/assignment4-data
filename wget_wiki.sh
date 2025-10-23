@@ -62,29 +62,28 @@ fi
 
 echo "Generated parts: ${PART_COUNT}"
 
-# Run parallel fetch: one wget process per part, one WARC per process
-# Notes:
-# - --timeout=5 covers DNS/connection/read timeouts (you can also set granular ones)
-# - --tries=1 for speed; increase if you need resilience
-# - -q for quiet operation; remove it to debug
-# - --warc-compression=on: some wget 1.x builds want a boolean; if your wget errors on this, remove the line
-parallel -j "${PARALLEL_JOBS}" --lb --halt now,fail=1 '
-  base=$(basename {} .list);
-  echo "[START] {#} -> ${WARCS_DIR}/warc_{#}_${base}.warc.gz"
-  wget \
-    --timeout=5 \
-    --warc-file="${WARCS_DIR}/warc_{#}_${base}" \
-    -q -i {} -O /dev/null
+parallel -j "${PARALLEL_JOBS}" --lb '
+  base=$(basename {} .list)
+  out="${WARCS_DIR}/warc_{#}_${base}"
+  echo "[START] {#} -> ${out}.warc.gz"
+  wget --timeout=5 --tries=1 \
+       --warc-file="${out}" '"${WARC_COMP_ARG}"' \
+       -q -i {} -O /dev/null
   status=$?
   if [ "$status" -eq 0 ]; then
-    echo "[DONE ] {#} -> ${WARCS_DIR}/warc_{#}_${base}.warc.gz"
+    echo "[DONE ] {#} -> ${out}.warc.gz"
   else
-    echo "[FAIL ] {#} (exit $status) for {}" >&2
+    # Wget exit 8 = server error (4xx/5xx). Log and continue.
+    echo "[FAIL ] {#} (exit $status) for {} -> ${out}.warc.gz" >&2
   fi
-  exit $status
+  exit 0
 ' ::: "${PARTS[@]}"
 
 echo "All tasks finished. WARC files are in: ${WARCS_DIR}/"
 
 # Uncomment to clean sub-lists after completion
 # rm -rf "${LISTS_DIR}"
+
+
+
+wget -i tmp_lists/part_00.list --warc-file=temp.warc -O /dev/null -q
