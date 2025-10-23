@@ -9,7 +9,8 @@ def extract_warc(content_bytes: bytes) -> str:
     try:
         content = content_bytes.decode(encode)
     except (UnicodeDecodeError, LookupError):
-        print(f"Failed to decode with {encode}, falling back to utf-8 with replacement.")
+        if __file__ == "__main__":
+            print(f"Failed to decode with {encode}, falling back to utf-8 with replacement.")
         content = content_bytes.decode("utf-8", errors="replace")
     text = extract_plain_text(content)
     return text

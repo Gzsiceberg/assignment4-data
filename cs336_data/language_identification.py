@@ -1,9 +1,14 @@
 import fasttext
-
 from cs336_data.extract_text import extract_warc
+
+global_model = None
+
 def detect_language(text: str) -> tuple[str, float]:
     text = text.replace("\n", " ").strip()
-    model = fasttext.load_model("model/lid.176.bin")
+    global global_model
+    if global_model is None:
+        global_model = fasttext.load_model("model/lid.176.bin")
+    model = global_model
     output = model.predict(text)
     lang = output[0][0].replace("__label__", "")
     confidence = output[1][0]
