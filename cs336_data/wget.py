@@ -162,7 +162,7 @@ async def main(input_file, output_file):
             TextColumn("• {task.fields[status]}"),
         ) as progress,
     ):
-        writer = WARCWriter(warc_stream, gzip=False)
+        writer = WARCWriter(warc_stream, gzip=True)
         task_id = progress.add_task(
             "Fetching URLs",
             total=total_line_count,
