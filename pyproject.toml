@@ -23,6 +23,7 @@ dependencies = [
     "warcio>=1.7.5",
     "aiohttp>=3.13.1",
     "rich>=14.0.0",
+    "datasets>=4.3.0",
 ]
 
 [tool.setuptools.packages.find]
