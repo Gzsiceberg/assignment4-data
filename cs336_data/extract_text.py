@@ -16,24 +16,18 @@ def extract_warc(content_bytes: bytes) -> str:
     return text
 
 
-
 if __name__ == "__main__":
+    import argparse
     import sys
-
-    warc_path = sys.argv[1]
-    output_path = sys.argv[2]
+    args = argparse.ArgumentParser(description="Extract text from WARC file.")
+    args.add_argument("warc_path", type=str, help="Path to the input WARC file.")
+    args.add_argument("output_path", type=str, help="Path to the output text file.")
+    parsed_args = args.parse_args(sys.argv[1:])
+    warc_path = parsed_args.warc_path
+    output_path = parsed_args.output_path
 
     with open(warc_path, "rb") as f:
-        with open(output_path, "w", encoding="utf-8") as out_f:
-            for i, record in enumerate(track(ArchiveIterator(f))):
-                if record.record_type == WarcRecordType.request:
-                    out_f.write(f"Date: {record.record_date}\n")
-                    out_f.write(f"RecordID: {record.record_id}\n")
-                if record.record_type == WarcRecordType.response:
-                    payload = record.reader.read()
-                    text = extract_warc(payload)
-                    out_f.write("\n")
-                    out_f.write(text)
-                    if i > 10000:
-                        break
+        line_count: int = sum(1 for _ in ArchiveIterator(f))
+    print(f"Total WARC records: {line_count}")
+    
 
