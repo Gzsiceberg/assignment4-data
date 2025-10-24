@@ -1,9 +1,9 @@
 from fastwarc.warc import ArchiveIterator, WarcRecordType
-from cs336_data.extract_text import extract_warc
 from rich.progress import track, Progress
-from language_identification import detect_language
-from quality_filters import gopher_quality_filter
 import regex as re
+from cs336_data.extract_text import extract_warc
+from cs336_data.language_identification import detect_language
+from cs336_data.quality_filters import gopher_quality_filter
 
 
 def preprocess_text(text: str) -> str:

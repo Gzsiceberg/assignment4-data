@@ -41,7 +41,8 @@ def run_classify_toxic_speech(text: str) -> tuple[Any, float]:
 
 
 def run_classify_quality(text: str) -> tuple[Any, float]:
-    raise NotImplementedError
+    from cs336_data.quality_classifier import predict_wiki_like
+    return predict_wiki_like(text)
 
 
 def run_gopher_quality_filter(text: str) -> bool:

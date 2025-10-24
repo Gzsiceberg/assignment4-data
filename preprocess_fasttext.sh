@@ -39,13 +39,17 @@ echo "Merged data has $(wc -l < "$merge_file") lines."
 
 # split into train and test
 train_file="data/wiki_ft_train.txt"
+validate_file="data/wiki_ft_validate.txt"
 test_file="data/wiki_ft_test.txt"
-train_ratio=0.8
+train_ratio=0.7
+validate_ratio=0.15
+test_ratio=0.15
 total_lines=$(wc -l < "$merge_file")
 train_lines=$(printf "%.0f" "$(echo "$total_lines * $train_ratio" | bc -l)")
-test_lines=$((total_lines - train_lines))
-echo "Splitting data into train ($train_lines lines) and test ($test_lines lines)"
-head -n "$train_lines" "$merge_file" > "$train_file"
-tail -n "$test_lines" "$merge_file" > "$test_file"
-echo "Training data saved to $train_file with $(wc -l < "$train_file") lines."
-echo "Testing data saved to $test_file with $(wc -l < "$test_file") lines."
+validate_lines=$(printf "%.0f" "$(echo "$total_lines * $validate_ratio" | bc -l)")
+test_lines=$((total_lines - train_lines - validate_lines))
+echo "Splitting data into train ($train_lines lines), validate ($validate_lines lines), and test ($test_lines lines)"
+head -n $train_lines "$merge_file" > "$train_file"
+tail -n +$((train_lines + 1)) "$merge_file" | head -n $validate_lines > "$validate_file"
+tail -n $test_lines "$merge_file" > "$test_file"
+echo "Data split complete."
