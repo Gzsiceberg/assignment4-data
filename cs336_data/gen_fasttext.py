@@ -22,6 +22,7 @@ def generate_fasttext_pos_data(
         with Progress() as progress: 
             task_id = progress.add_task("Starting...", total=line_count)
             for record in ArchiveIterator(f):
+                progress.update(task_id, description=f"Generating {write_count} samples out of {line_count}...", advance=1)
                 if not record.record_type == WarcRecordType.response:
                     continue
                 payload = record.reader.read()
@@ -36,7 +37,6 @@ def generate_fasttext_pos_data(
                 label_text = f"{'__label__positive' if is_positive else '__label__negative'} {text}\n"
                 out_f.write(label_text)
                 write_count += 1
-                progress.update(task_id, description=f"Generating {write_count} samples out of {line_count}...")
                 if not is_positive and write_count >= neg_count:
                     break
     print(f"Finished writing {write_count} samples to {output_path}.")

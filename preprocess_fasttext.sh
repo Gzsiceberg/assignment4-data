@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 POS_WARC="data/t.warc"
-POS_DATA="data/pos.dat"
+POS_DATA="data/wiki_ft_pos.dat"
 # check POS_DATA exists
 if [ ! -f "$POS_DATA" ]; then
     echo "Positive data file $POS_DATA does not exist. Generating..."
@@ -13,16 +13,23 @@ else
 fi
 
 NEG_WARC="data/CC-MAIN-20250417135010-20250417165010-00065.warc.gz"
-NEG_DATA="data/neg.dat"
+NEG_DATA="data/wiki_ft_neg.dat"
 # check NEG_DATA exists
 if [ ! -f "$NEG_DATA" ]; then
     echo "Negative data file $NEG_DATA does not exist. Generating..."
     # count lines in NEG_WARC
-    uv run cs336_data/gen_fasttext.py $NEG_WARC $NEG_DATA $pos_count
+    uv run cs336_data/gen_fasttext.py $NEG_WARC $NEG_DATA -n $pos_count
     neg_count=$(wc -l < "$NEG_DATA")
 else
     neg_count=$(wc -l < "$NEG_DATA")
     echo "Negative data file $NEG_DATA already exists with $neg_count lines. Skipping generation."
+fi
+
+if [ "$pos_count" -ne "$neg_count" ]; then
+    echo "Warning: Positive data has $pos_count lines, but negative data has $neg_count lines."
+    head -n $neg_count "$POS_DATA" > "data/wiki_ft_pos_trimmed.dat"
+    mv "data/wiki_ft_pos_trimmed.dat" "$POS_DATA"
+    echo "Trimmed positive data to $neg_count lines."
 fi
 
 merge_file="data/wiki_ft_input.txt"
