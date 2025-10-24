@@ -104,8 +104,9 @@ def minhash_deduplicate(input_files: list[os.PathLike], num_hashes: int, num_ban
             docs: list[Document] = buckets[signature]
             for doc in docs:
                 root: Document = doc.find_root()
-                if root.path not in output_docs:
-                    output_docs[root.path] = root
+                if root.path in output_docs:
+                    continue
+                output_docs[root.path] = root
     
     os.makedirs(output_dir, exist_ok=True)
     for root_path in output_docs:
