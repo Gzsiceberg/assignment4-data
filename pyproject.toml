@@ -24,6 +24,8 @@ dependencies = [
     "aiohttp>=3.13.1",
     "rich>=14.0.0",
     "datasets>=4.3.0",
+    "jupter>=0.1.0",
+    "ipywidgets>=8.1.7",
 ]
 
 [tool.setuptools.packages.find]

@@ -7,7 +7,9 @@ def detect_language(text: str) -> tuple[str, float]:
     text = text.replace("\n", " ").strip()
     global global_model
     if global_model is None:
-        global_model = fasttext.load_model("model/lid.176.bin")
+        import os
+        current_dir = os.path.dirname(__file__)
+        global_model = fasttext.load_model(os.path.join(current_dir, "../model/lid.176.bin"))
     model = global_model
     output = model.predict(text)
     lang = output[0][0].replace("__label__", "")
