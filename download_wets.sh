@@ -6,7 +6,7 @@ FILE_PATH="data/wet.paths.gz"
 URL="http://data.commoncrawl.org/"
 MAX_COUNT=10
 PARALLEL_JOBS=8  # 并发下载数量
-DOWNLOAD_DIR="data"
+DOWNLOAD_DIR="data/warc_wets/"
 
 # 解析命令行参数
 if [ ! -z "${1:-}" ]; then
