@@ -1,6 +1,7 @@
 import concurrent.futures
 import os
 import pathlib
+import random
 from tqdm import tqdm
 from fastwarc.warc import ArchiveIterator, WarcRecordType
 from resiliparse.parse import encoding
@@ -41,10 +42,10 @@ def write_record(writer: WARCWriter, record: Record):
 
 
 def process_single_wet_file(input_path: str, output_path: str):
-    from language_identification import detect_language
-    from mask_pii import mask_email, mask_phone_numbers, mask_ip_addresses
-    from harmful_content import classify_nsfw, classify_toxicity
-    from quality_filters import gopher_quality_filter
+    from cs336_data.language_identification import detect_language
+    from cs336_data.mask_pii import mask_email, mask_phone_numbers, mask_ip_addresses
+    from cs336_data.harmful_content import classify_nsfw, classify_toxicity
+    from cs336_data.quality_filters import gopher_quality_filter
 
     filter_counter = defaultdict(int)
     with open(input_path, "rb") as infile, open(output_path, "wb") as warc_stream:
@@ -108,7 +109,10 @@ if __name__ == "__main__":
     num_cpus = len(os.sched_getaffinity(0))
     executor = concurrent.futures.ProcessPoolExecutor(max_workers=num_cpus)
     wet_filepaths = glob.glob("data/warc_wets/*.warc.wet.gz")
-    output_directory_path = "data/filtered_data/"
+    random.seed(42)
+    random.shuffle(wet_filepaths)
+    wet_filepaths = wet_filepaths[:100]  # For testing, limit to first 100 files
+    output_directory_path = "data/filtered_01/"
     print(f"Processing {len(wet_filepaths)} WET files using {num_cpus} CPUs.")
     os.makedirs(output_directory_path, exist_ok=True)
 
