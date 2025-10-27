@@ -185,15 +185,20 @@ def filter(
     wet_filepaths: list[str],
     executor: concurrent.futures.ProcessPoolExecutor,
     output_path: str,
+    check_existing: bool = False,
 ):
     futures = []
     for wet_filepath in wet_filepaths:
         # For each warc.wet.gz filepath, submit a job to the executor and get a future back
         wet_filename = os.path.basename(wet_filepath)
+        output_wet_filepath = os.path.join(output_path, wet_filename)
+        if check_existing and os.path.exists(output_wet_filepath):
+            print(f"Skipping existing file: {output_wet_filepath}")
+            continue
         future = executor.submit(
             process_single_wet_file,
             wet_filepath,
-            os.path.join(output_path, wet_filename),
+            output_wet_filepath,
         )
         # Store the futures
         futures.append(future)
@@ -404,6 +409,11 @@ if __name__ == "__main__":
         "-m", "--max_workers", type=int, default=32, help="Maximum number of worker processes"
     )
     arg_parser.add_argument(
+        "--check_existing",
+        action="store_true",
+        help="Whether to skip processing files that already exist in the output directory",
+    )
+    arg_parser.add_argument(
         "--limit",
         type=int,
         default=100000,
@@ -427,7 +437,7 @@ if __name__ == "__main__":
 
     if args.filter:
         start_time = time.time()
-        filter(wet_filepaths, executor, output_directory_path)
+        filter(wet_filepaths, executor, output_directory_path, check_existing=args.check_existing)
         end_time = time.time()
         elapsed_time = end_time - start_time
         print(
