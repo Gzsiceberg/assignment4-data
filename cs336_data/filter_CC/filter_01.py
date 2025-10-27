@@ -156,7 +156,11 @@ def exact_line_deduplication_single_file(
     return filter_counter
 
 
-def filter(wet_filepaths, executor, output_directory_path):
+def filter(
+    wet_filepaths: list[str],
+    executor: concurrent.futures.ProcessPoolExecutor,
+    output_path: str,
+):
     futures = []
     for wet_filepath in wet_filepaths:
         # For each warc.wet.gz filepath, submit a job to the executor and get a future back
@@ -164,7 +168,7 @@ def filter(wet_filepaths, executor, output_directory_path):
         future = executor.submit(
             process_single_wet_file,
             wet_filepath,
-            os.path.join(output_directory_path, wet_filename),
+            os.path.join(output_path, wet_filename),
         )
         # Store the futures
         futures.append(future)
@@ -186,11 +190,13 @@ def filter(wet_filepaths, executor, output_directory_path):
         print(f"{key}: {value} ({value/total:.2%})")
 
 
-def dedup(executor, output_directory_path):
-    all_output_files = glob.glob(os.path.join(output_directory_path, "*.warc.wet.gz"))
+def dedup(
+    executor: concurrent.futures.ProcessPoolExecutor, input_path: str, output_path: str
+):
+    all_input_files = glob.glob(os.path.join(input_path, "*.warc.wet.gz"))
     futures = []
     max_lines = 100_000_000
-    for file_path in all_output_files:
+    for file_path in all_input_files:
         future = executor.submit(exact_line_dedup_preprocess, file_path, max_lines)
         futures.append(future)
 
@@ -198,18 +204,17 @@ def dedup(executor, output_directory_path):
     total_line_count = np.zeros(max_lines, dtype=int)
     for future in tqdm(
         concurrent.futures.as_completed(futures),
-        total=len(all_output_files),
+        total=len(all_input_files),
     ):
         line_count = future.result()
         total_line_count += line_count
 
     print("Starting deduplication phase...")
     futures = []
-    deduped_output_directory_path = "data/filtered_01_deduped/"
-    os.makedirs(deduped_output_directory_path, exist_ok=True)
-    for file_path in all_output_files:
+    os.makedirs(output_path, exist_ok=True)
+    for file_path in all_input_files:
         wet_filename = os.path.basename(file_path)
-        deduped_output_path = os.path.join(deduped_output_directory_path, wet_filename)
+        deduped_output_path = os.path.join(output_path, wet_filename)
         future = executor.submit(
             exact_line_deduplication_single_file,
             file_path,
@@ -222,7 +227,7 @@ def dedup(executor, output_directory_path):
     filter_counter: dict[str, int] = defaultdict(int)
     for future in tqdm(
         concurrent.futures.as_completed(futures),
-        total=len(all_output_files),
+        total=len(all_input_files),
     ):
         counter = future.result()
         for key, value in counter.items():
@@ -285,19 +290,19 @@ def process_single_wet_file_by_model(input_path: str, output_path: str):
 
 
 def filter_by_model(
-    output_directory_path_deduped: str, executor: concurrent.futures.ProcessPoolExecutor
+    input_deduped: str,
+    executor: concurrent.futures.ProcessPoolExecutor,
+    output_path: str,
 ):
-    wet_filepaths = glob.glob(f"{output_directory_path_deduped}/*.warc.wet.gz")
-    output_directory_path = "data/filtered_01_by_model/"
-
-    os.makedirs(output_directory_path, exist_ok=True)
+    wet_filepaths = glob.glob(f"{input_deduped}/*.warc.wet.gz")
+    os.makedirs(output_path, exist_ok=True)
     futures = []
     for wet_filepath in wet_filepaths:
         wet_filename = str(pathlib.Path(wet_filepath).name)
         future = executor.submit(
             process_single_wet_file_by_model,
             wet_filepath,
-            os.path.join(output_directory_path, wet_filename),
+            os.path.join(output_path, wet_filename),
         )
         futures.append(future)
 
@@ -311,7 +316,7 @@ def filter_by_model(
             filter_counter[key] += value
 
     print("Final filter counts:")
-    total = filter_counter["01_total"]
+    total = max(filter_counter.values())
     for key, value in filter_counter.items():
         print(f"{key}: {value} ({value/total:.2%})")
 
@@ -350,6 +355,7 @@ if __name__ == "__main__":
         wet_filepaths = wet_filepaths[: args.limit]
     output_directory_path = "data/filtered_01/"
     output_directory_path_dedup = "data/filtered_01_deduped/"
+    output_directory_path_by_model = "data/filtered_01_by_model/"
     print(f"Processing {len(wet_filepaths)} WET files using {num_cpus} CPUs.")
     os.makedirs(output_directory_path, exist_ok=True)
 
@@ -364,7 +370,7 @@ if __name__ == "__main__":
 
     if args.dedup:
         start_time = time.time()
-        dedup(executor, output_directory_path)
+        dedup(executor, output_directory_path, output_directory_path_dedup)
         end_time = time.time()
         elapsed_time = end_time - start_time
         print(
@@ -373,7 +379,9 @@ if __name__ == "__main__":
 
     if args.by_model:
         start_time = time.time()
-        filter_by_model(output_directory_path_dedup, executor)
+        filter_by_model(
+            output_directory_path_dedup, executor, output_directory_path_by_model
+        )
         end_time = time.time()
         elapsed_time = end_time - start_time
         print(
