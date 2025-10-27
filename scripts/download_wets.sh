@@ -10,6 +10,7 @@ fi
 URL="http://data.commoncrawl.org/"
 MAX_COUNT=10
 PARALLEL_JOBS=8  # 并发下载数量
+SKIP_COUNT=0     # 跳过前 n 个文件
 DOWNLOAD_DIR="data/warc_wets/"
 
 # 解析命令行参数
@@ -19,6 +20,10 @@ fi
 
 if [ ! -z "${2:-}" ]; then
     PARALLEL_JOBS=$2
+fi
+
+if [ ! -z "${3:-}" ]; then
+    SKIP_COUNT=$3
 fi
 
 # 确保下载目录存在
@@ -34,7 +39,8 @@ echo "使用 aria2c 进行下载"
 
 # 生成下载列表
 TEMP_LIST=$(mktemp)
-trap "rm -f $TEMP_LIST" EXIT
+TEMP_LIST_FILTERED=$(mktemp)
+trap "rm -f $TEMP_LIST $TEMP_LIST_FILTERED" EXIT
 
 echo "正在生成下载列表（前 $MAX_COUNT 个文件）..."
 
@@ -45,8 +51,19 @@ echo "正在生成下载列表（前 $MAX_COUNT 个文件）..."
     echo "  dir=${DOWNLOAD_DIR}"
 done > "$TEMP_LIST"
 
+# 如果需要跳过前 n 个文件
+if [ "$SKIP_COUNT" -gt 0 ]; then
+    echo "跳过 TEMP_LIST 中的前 $SKIP_COUNT 个文件..."
+    # 每个文件在 aria2c 输入文件中占3行（URL、out、dir）
+    SKIP_LINES=$((SKIP_COUNT * 3))
+    tail -n +$((SKIP_LINES + 1)) "$TEMP_LIST" > "$TEMP_LIST_FILTERED"
+    FINAL_LIST="$TEMP_LIST_FILTERED"
+else
+    FINAL_LIST="$TEMP_LIST"
+fi
+
 # 统计需要下载的文件数
-DOWNLOAD_COUNT=$(grep -c "^http" "$TEMP_LIST" || echo "0")
+DOWNLOAD_COUNT=$(grep -c "^http" "$FINAL_LIST" || echo "0")
 
 echo "准备下载 $DOWNLOAD_COUNT 个文件（aria2c 会自动跳过已完成的文件）"
 
@@ -72,7 +89,7 @@ fi
 #     --summary-interval=10
 
 aria2c \
-    --input-file="$TEMP_LIST" \
+    --input-file="$FINAL_LIST" \
     --max-concurrent-downloads="${PARALLEL_JOBS:-3}" \
     --max-connection-per-server=1 \
     --split=1 \
