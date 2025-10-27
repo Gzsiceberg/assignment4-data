@@ -1,4 +1,5 @@
 import concurrent.futures
+import gc
 import os
 import pathlib
 import random
@@ -207,6 +208,7 @@ def dedup(
         c = future.result()
         hash_counter += c
         hash_counter = np.clip(hash_counter, 0, 10)
+        gc.collect()
     
     count_zero = np.sum(hash_counter == 0)
     count_one = np.sum(hash_counter == 1)
