@@ -416,6 +416,7 @@ if __name__ == "__main__":
     random.shuffle(wet_filepaths)
     wet_filepaths = wet_filepaths[: args.limit]
     num_cpus = min(len(os.sched_getaffinity(0)), int(len(wet_filepaths) / 2))
+    num_cpus = min(num_cpus, args.max_workers)
     # Set up the executor
     executor = concurrent.futures.ProcessPoolExecutor(max_workers=num_cpus)
     output_directory_path = "data/filtered_01/"
