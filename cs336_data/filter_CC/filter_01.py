@@ -103,7 +103,7 @@ def process_single_wet_file(input_path: str, output_path: str):
 
 
 def exact_line_dedup_preprocess(input_path: str, max_lines: int) -> np.ndarray:
-    line_count = np.zeros(max_lines, dtype=np.int8)
+    hash_counter = np.zeros(max_lines, dtype=np.int8)
     with open(input_path, "rb") as file:
         for record in ArchiveIterator(file):
             if record.record_type != WarcRecordType.conversion:
@@ -112,13 +112,13 @@ def exact_line_dedup_preprocess(input_path: str, max_lines: int) -> np.ndarray:
             text = decode_content(content_bytes)
             lines = text.splitlines()
             for line in lines:
-                line_hash = hash(line) % max_lines
-                line_count[line_hash] = min(line_count[line_hash] + 1, 10)
-    return line_count
+                hash_index = hash(line) % max_lines
+                hash_counter[hash_index] = min(hash_counter[hash_index] + 1, 10)
+    return hash_counter
 
 
 def exact_line_deduplication_single_file(
-    input_path: str, output_path: str, line_count, max_lines: int
+    input_path: str, output_path: str, hash_counter, max_lines: int
 ):
     filter_counter = defaultdict(int)
     with open(input_path, "rb") as infile, open(output_path, "wb") as outfile:
@@ -133,8 +133,8 @@ def exact_line_deduplication_single_file(
 
             deduped_lines = []
             for line in lines:
-                line_hash = hash(line) % max_lines
-                if line_count[line_hash] == 1:
+                hash_index = hash(line) % max_lines
+                if hash_counter[hash_index] == 1:
                     deduped_lines.append(line)
             deduped_text = "\n".join(deduped_lines)
 
@@ -199,14 +199,14 @@ def dedup(
         futures.append(future)
 
     print("Aggregating line counts for deduplication...")
-    total_line_count = np.zeros(max_lines, dtype=np.int8)
+    hash_counter = np.zeros(max_lines, dtype=np.int8)
     for future in tqdm(
         concurrent.futures.as_completed(futures),
         total=len(all_input_files),
     ):
-        line_count = future.result()
-        total_line_count += line_count
-        total_line_count = np.clip(total_line_count, 0, 10)
+        c = future.result()
+        hash_counter += c
+        hash_counter = np.clip(hash_counter, 0, 10)
 
     print("Starting deduplication phase...")
     futures = []
@@ -218,7 +218,7 @@ def dedup(
             exact_line_deduplication_single_file,
             file_path,
             deduped_output_path,
-            total_line_count,
+            hash_counter,
             max_lines,
         )
         futures.append(future)
