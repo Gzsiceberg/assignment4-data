@@ -115,26 +115,21 @@ def exact_line_dedup_preprocess_shared(
     # 创建numpy数组视图，指向共享内存
     hash_counter = np.ndarray((max_lines,), dtype=np.int8, buffer=shm.buf)
     
-    try:
-        with open(input_path, "rb") as file:
-            for record in ArchiveIterator(file):
-                if record.record_type != WarcRecordType.conversion:
-                    continue
-                content_bytes = record.reader.read()
-                text = decode_content(content_bytes)
-                lines = text.splitlines()
-                
-                for line in lines:
-                    hash_index = hash(line) % max_lines
-                    # 原子操作：读取当前值，增加，然后限制最大值为10
-                    current_val = hash_counter[hash_index]
-                    if current_val < 10:
-                        hash_counter[hash_index] = current_val + 1
-                    stats_count += 1
-    finally:
-        # 不要关闭共享内存，因为其他进程还在使用
-        shm.close()
-    
+    with open(input_path, "rb") as file:
+        for record in ArchiveIterator(file):
+            if record.record_type != WarcRecordType.conversion:
+                continue
+            content_bytes = record.reader.read()
+            text = decode_content(content_bytes)
+            lines = text.splitlines()
+            
+            for line in lines:
+                hash_index = hash(line) % max_lines
+                current_val = hash_counter[hash_index]
+                if current_val < 10:
+                    hash_counter[hash_index] = current_val + 1
+                stats_count += 1
+    shm.close()
     return stats_count
 
 
@@ -188,6 +183,8 @@ def exact_line_deduplication_single_file(
                     content=deduped_text,
                 )
                 write_record(writer, rec)
+    except Exception as e:
+        print(f"Error processing {input_path}: {e}")
     finally:
         shm.close()
     
