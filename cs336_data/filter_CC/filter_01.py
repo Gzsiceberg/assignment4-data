@@ -354,13 +354,13 @@ if __name__ == "__main__":
     )
     args = arg_parser.parse_args()
 
+    random.seed(42)
     wet_filepaths = glob.glob("data/warc_wets/*.warc.wet.gz")
+    random.shuffle(wet_filepaths)
+    wet_filepaths = wet_filepaths[:args.limit]
     num_cpus = min(len(os.sched_getaffinity(0)), int(len(wet_filepaths) / 2))
     # Set up the executor
     executor = concurrent.futures.ProcessPoolExecutor(max_workers=num_cpus)
-    random.seed(42)
-    random.shuffle(wet_filepaths)
-    wet_filepaths = wet_filepaths[:args.limit]
     output_directory_path = "data/filtered_01/"
     output_directory_path_dedup = "data/filtered_01_deduped/"
     output_directory_path_by_model = "data/filtered_01_by_model/"
