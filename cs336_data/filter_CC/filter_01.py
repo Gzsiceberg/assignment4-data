@@ -202,6 +202,7 @@ def wait_for_futures(futures: list[concurrent.futures.Future], hash_counter: np.
         future._result = None
         del future
         gc.collect()
+    return hash_counter
 
 
 def dedup(
@@ -216,7 +217,7 @@ def dedup(
         future = executor.submit(exact_line_dedup_preprocess, file_path, max_lines)
         futures.append(future)
 
-    wait_for_futures(futures, hash_counter)
+    hash_counter = wait_for_futures(futures, hash_counter)
     futures = []
     gc.collect()
     
