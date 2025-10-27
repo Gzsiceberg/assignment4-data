@@ -5,8 +5,6 @@ from fastwarc import ArchiveIterator, WarcRecordType
 from cs336_data.gen_fasttext import preprocess_text
 from cs336_data.filter_CC.filter_01 import decode_content
 import os
-from cs336_data.language_identification import detect_language
-from cs336_data.quality_filters import gopher_quality_filter
 
 def gen_fasttext_pos_data(data):
     text = data["text"]

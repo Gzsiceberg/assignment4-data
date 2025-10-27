@@ -25,7 +25,8 @@ def predict_c4_like(text: str) -> tuple[str, float]:
     text = preprocess_text(text)
     global global_model
     if global_model is None:
-        global_model = fasttext.load_model("model/qc_model.bin")
+        dir_path = os.path.dirname(os.path.abspath(__file__))
+        global_model = fasttext.load_model(os.path.join(dir_path, "../../model/qc_model.bin"))
     model = global_model
     output = model.predict(text)
     label = output[0][0].replace("__label__", "")
