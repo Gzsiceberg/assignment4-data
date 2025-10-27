@@ -105,10 +105,10 @@ if __name__ == "__main__":
     import glob
     from rich import print
 
-    # Set up the executor
-    num_cpus = len(os.sched_getaffinity(0))
-    executor = concurrent.futures.ProcessPoolExecutor(max_workers=num_cpus)
     wet_filepaths = glob.glob("data/warc_wets/*.warc.wet.gz")
+    num_cpus = min(len(os.sched_getaffinity(0)), int(len(wet_filepaths) / 2))
+    # Set up the executor
+    executor = concurrent.futures.ProcessPoolExecutor(max_workers=num_cpus)
     random.seed(42)
     random.shuffle(wet_filepaths)
     wet_filepaths = wet_filepaths[:100]  # For testing, limit to first 100 files
