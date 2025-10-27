@@ -4,8 +4,8 @@ set -euo pipefail
 
 FILE_PATH="data/wet.paths.gz"
 if [ ! -f "$FILE_PATH" ]; then
-    echo "正在下载 wet.paths.gz 文件..."
-    wget -O "$FILE_PATH" "https://commoncrawl.s3.amazonaws.com/crawl-data/CC-MAIN-2024-10/wet.paths.gz"
+    echo "错误: 找不到文件 $FILE_PATH，请确保该文件存在"
+    exit 1
 fi
 URL="http://data.commoncrawl.org/"
 MAX_COUNT=10
