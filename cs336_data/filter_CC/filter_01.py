@@ -401,6 +401,9 @@ if __name__ == "__main__":
         "--by_model", action="store_true", help="Whether to apply filtering by model"
     )
     arg_parser.add_argument(
+        "-m", "--max_workers", type=int, default=32, help="Maximum number of worker processes"
+    )
+    arg_parser.add_argument(
         "--limit",
         type=int,
         default=100000,
