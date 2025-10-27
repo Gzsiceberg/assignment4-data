@@ -198,7 +198,7 @@ def dedup(
     all_input_files = glob.glob(os.path.join(input_path, "*.warc.wet.gz"))[:limit]
     futures = []
     print("Aggregating line counts for deduplication...")
-    max_lines = 100_000_000
+    max_lines = 1000_000_000
     hash_counter = np.zeros(max_lines, dtype=np.int8)
     for file_path in all_input_files:
         future = executor.submit(exact_line_dedup_preprocess, file_path, max_lines)
