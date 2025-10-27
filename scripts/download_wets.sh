@@ -3,6 +3,10 @@
 set -euo pipefail
 
 FILE_PATH="data/wet.paths.gz"
+if [ ! -f "$FILE_PATH" ]; then
+    echo "正在下载 wet.paths.gz 文件..."
+    wget -O "$FILE_PATH" "https://commoncrawl.s3.amazonaws.com/crawl-data/CC-MAIN-2024-10/wet.paths.gz"
+fi
 URL="http://data.commoncrawl.org/"
 MAX_COUNT=10
 PARALLEL_JOBS=8  # 并发下载数量
