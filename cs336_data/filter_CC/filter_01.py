@@ -189,26 +189,36 @@ def filter(
         print(f"{key}: {value} ({value/total:.2%})")
 
 
+def wait_for_futures(futures: list[concurrent.futures.Future], hash_counter: np.ndarray):
+    total = len(futures)
+    for future in tqdm(
+        concurrent.futures.as_completed(futures),
+        total=total,
+    ):
+        c = future.result()
+        hash_counter += c
+        hash_counter = np.clip(hash_counter, 0, 10)
+
+
 def dedup(
     executor: concurrent.futures.ProcessPoolExecutor, input_path: str, output_path: str, limit: int = 10000
 ):
     all_input_files = glob.glob(os.path.join(input_path, "*.warc.wet.gz"))[:limit]
     futures = []
+    print("Aggregating line counts for deduplication...")
     max_lines = 100_000_000
+    hash_counter = np.zeros(max_lines, dtype=np.int8)
     for file_path in all_input_files:
         future = executor.submit(exact_line_dedup_preprocess, file_path, max_lines)
         futures.append(future)
+        if len(futures) >= 16:
+            wait_for_futures(futures, hash_counter)
+            futures = []
+            gc.collect()
 
-    print("Aggregating line counts for deduplication...")
-    hash_counter = np.zeros(max_lines, dtype=np.int8)
-    for future in tqdm(
-        concurrent.futures.as_completed(futures),
-        total=len(all_input_files),
-    ):
-        c = future.result()
-        hash_counter += c
-        hash_counter = np.clip(hash_counter, 0, 10)
-        gc.collect()
+    wait_for_futures(futures, hash_counter)
+    futures = []
+    gc.collect()
     
     count_zero = np.sum(hash_counter == 0)
     count_one = np.sum(hash_counter == 1)
