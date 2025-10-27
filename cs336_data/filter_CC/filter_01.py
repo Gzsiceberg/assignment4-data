@@ -103,7 +103,7 @@ def process_single_wet_file(input_path: str, output_path: str):
 
 
 def exact_line_dedup_preprocess(input_path: str, max_lines: int) -> np.ndarray:
-    line_count = np.zeros(max_lines, dtype=int)
+    line_count = np.zeros(max_lines, dtype=np.int8)
     with open(input_path, "rb") as file:
         for record in ArchiveIterator(file):
             if record.record_type != WarcRecordType.conversion:
@@ -113,7 +113,7 @@ def exact_line_dedup_preprocess(input_path: str, max_lines: int) -> np.ndarray:
             lines = text.splitlines()
             for line in lines:
                 line_hash = hash(line) % max_lines
-                line_count[line_hash] += 1
+                line_count[line_hash] = min(line_count[line_hash] + 1, 10)
     return line_count
 
 
@@ -129,21 +129,19 @@ def exact_line_deduplication_single_file(
             content_bytes = record.reader.read()
             text = decode_content(content_bytes)
             lines = text.splitlines()
-            filter_counter["dedup_total"] += len(lines)
+            filter_counter["dedup_total"] += 1
 
             deduped_lines = []
             for line in lines:
                 line_hash = hash(line) % max_lines
                 if line_count[line_hash] == 1:
                     deduped_lines.append(line)
-                else:
-                    filter_counter["dedup_filtered"] += 1
             deduped_text = "\n".join(deduped_lines)
 
             if not deduped_text.strip():
-                filter_counter["dedup_filtered"] += len(deduped_lines)
+                filter_counter["dedup_filtered"] += 1
                 continue
-            filter_counter["dedup_passed"] += len(deduped_lines)
+            filter_counter["dedup_passed"] += 1
 
             record_id = record.record_id
             url: str = record.headers.get("WARC-Target-URI", "unknown")  # type: ignore
@@ -201,13 +199,14 @@ def dedup(
         futures.append(future)
 
     print("Aggregating line counts for deduplication...")
-    total_line_count = np.zeros(max_lines, dtype=int)
+    total_line_count = np.zeros(max_lines, dtype=np.int8)
     for future in tqdm(
         concurrent.futures.as_completed(futures),
         total=len(all_input_files),
     ):
         line_count = future.result()
         total_line_count += line_count
+        total_line_count = np.clip(total_line_count, 0, 10)
 
     print("Starting deduplication phase...")
     futures = []
