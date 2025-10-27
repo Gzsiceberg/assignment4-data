@@ -452,11 +452,21 @@ if __name__ == "__main__":
             f"Deduplication took {elapsed_time:.2f} seconds. Throughput: {len(wet_filepaths)/elapsed_time:.2f} WET files/second."
         )
         """
+        Creating shared memory of size 0.93 GB...
+        Phase 1: Counting lines: 100%|________________________________________________________________________________________________________| 1000/1000 [01:36<00:00, 10.39it/s]
+        Total lines processed: 476,482,657
+        Hash counts distribution:
+        Zero count: 919,807,499 (91.98%)
+        One count: 62,684,168 (6.27%)
+        More than one count: 17,508,333 (1.75%)
+        Starting deduplication phase...
+        Phase 2: Deduplicating: 100%|_________________________________________________________________________________________________________| 1000/1000 [02:44<00:00,  6.08it/s]
         Final dedup counts:
-        dedup_total: 343384 (100.00%)
-        dedup_passed: 325018 (94.65%)
-        dedup_filtered: 18366 (5.35%)
-        Deduplication took 77.70 seconds. Throughput: 1.29 WET files/second.
+        dedup_total: 3,435,127 (100.00%)
+        dedup_passed: 3,118,104 (90.77%)
+        dedup_filtered: 317,023 (9.23%)
+        Shared memory cleaned up.
+        Deduplication took 263.37 seconds. Throughput: 5.32 WET files/second.
         """
 
     if args.by_model:
