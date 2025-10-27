@@ -80,7 +80,6 @@ aria2c \
     --continue=true \
     --max-tries=20 \
     --retry-wait=5 \
-    --retry-on-http-error=403,429,500,502,503,504 \
     --user-agent="MyResearchBot/1.0 (contact: aflashsheng@gmail.com)" \
     --timeout=60 \
     --connect-timeout=30 \
