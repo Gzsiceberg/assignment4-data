@@ -357,25 +357,25 @@ if __name__ == "__main__":
         start_time = time.time()
         filter(wet_filepaths, executor, output_directory_path)
         end_time = time.time()
-        elasped_time = end_time - start_time
+        elapsed_time = end_time - start_time
         print(
-            f"Filtering took {elasped_time:.2f} seconds. Throughput: {len(wet_filepaths)/elasped_time:.2f} WET files/second."
+            f"Filtering took {elapsed_time:.2f} seconds. Throughput: {len(wet_filepaths)/elapsed_time:.2f} WET files/second."
         )
 
     if args.dedup:
         start_time = time.time()
         dedup(executor, output_directory_path)
         end_time = time.time()
-        elasped_time = end_time - start_time
+        elapsed_time = end_time - start_time
         print(
-            f"Deduplication took {elasped_time:.2f} seconds. Throughput: {len(wet_filepaths)/elasped_time:.2f} WET files/second."
+            f"Deduplication took {elapsed_time:.2f} seconds. Throughput: {len(wet_filepaths)/elapsed_time:.2f} WET files/second."
         )
 
     if args.by_model:
         start_time = time.time()
         filter_by_model(output_directory_path_dedup, executor)
         end_time = time.time()
-        elasped_time = end_time - start_time
+        elapsed_time = end_time - start_time
         print(
-            f"Filtering by model took {elasped_time:.2f} seconds. Throughput: {len(wet_filepaths)/elasped_time:.2f} WET files/second."
+            f"Filtering by model took {elapsed_time:.2f} seconds. Throughput: {len(wet_filepaths)/elapsed_time:.2f} WET files/second."
         )
