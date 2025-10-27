@@ -207,6 +207,15 @@ def dedup(
         c = future.result()
         hash_counter += c
         hash_counter = np.clip(hash_counter, 0, 10)
+    
+    count_zero = np.sum(hash_counter == 0)
+    count_one = np.sum(hash_counter == 1)
+    count_more = np.sum(hash_counter > 1)
+    total_counts = len(hash_counter)
+    print(f"Hash counts distribution:")
+    print(f"  Zero count: {count_zero} ({count_zero/total_counts:.2%})")
+    print(f"  One count: {count_one} ({count_one/total_counts:.2%})")
+    print(f"  More than one count: {count_more} ({count_more/total_counts:.2%})")
 
     print("Starting deduplication phase...")
     futures = []
