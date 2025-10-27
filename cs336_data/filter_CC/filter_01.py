@@ -375,6 +375,14 @@ if __name__ == "__main__":
         print(
             f"Filtering took {elapsed_time:.2f} seconds. Throughput: {len(wet_filepaths)/elapsed_time:.2f} WET files/second."
         )
+        """
+        Final filter counts:
+        01_total: 2348614 (100.00%)
+        02_language: 1888850 (80.42%)
+        04_filter_passed: 343384 (14.62%)
+        03_quality: 116380 (4.96%)
+        Filtering took 310.87 seconds. Throughput: 0.32 WET files/second.
+        """
 
     if args.dedup:
         start_time = time.time()
@@ -384,6 +392,13 @@ if __name__ == "__main__":
         print(
             f"Deduplication took {elapsed_time:.2f} seconds. Throughput: {len(wet_filepaths)/elapsed_time:.2f} WET files/second."
         )
+        """
+        Final dedup counts:
+        dedup_total: 343384 (100.00%)
+        dedup_passed: 325018 (94.65%)
+        dedup_filtered: 18366 (5.35%)
+        Deduplication took 77.70 seconds. Throughput: 1.29 WET files/second.
+        """
 
     if args.by_model:
         start_time = time.time()
