@@ -189,7 +189,21 @@ def filter(
         print(f"{key}: {value} ({value/total:.2%})")
 
 
-def wait_for_futures(futures: list[concurrent.futures.Future], hash_counter: np.ndarray):
+def dedup(
+    executor: concurrent.futures.ProcessPoolExecutor,
+    input_path: str,
+    output_path: str,
+    limit: int = 10000,
+):
+    all_input_files = glob.glob(os.path.join(input_path, "*.warc.wet.gz"))[:limit]
+    futures = []
+    print("Aggregating line counts for deduplication...")
+    max_lines = 100_000_000
+    hash_counter = np.zeros(max_lines, dtype=np.int8)
+    for file_path in all_input_files:
+        future = executor.submit(exact_line_dedup_preprocess, file_path, max_lines)
+        futures.append(future)
+
     total = len(futures)
     for future in tqdm(
         concurrent.futures.as_completed(futures),
@@ -202,25 +216,10 @@ def wait_for_futures(futures: list[concurrent.futures.Future], hash_counter: np.
         future._result = None
         del future
         gc.collect()
-    return hash_counter
 
-
-def dedup(
-    executor: concurrent.futures.ProcessPoolExecutor, input_path: str, output_path: str, limit: int = 10000
-):
-    all_input_files = glob.glob(os.path.join(input_path, "*.warc.wet.gz"))[:limit]
-    futures = []
-    print("Aggregating line counts for deduplication...")
-    max_lines = 100_000_000
-    hash_counter = np.zeros(max_lines, dtype=np.int8)
-    for file_path in all_input_files:
-        future = executor.submit(exact_line_dedup_preprocess, file_path, max_lines)
-        futures.append(future)
-
-    hash_counter = wait_for_futures(futures, hash_counter)
     futures = []
     gc.collect()
-    
+
     count_zero = np.sum(hash_counter == 0)
     count_one = np.sum(hash_counter == 1)
     count_more = np.sum(hash_counter > 1)
@@ -314,7 +313,7 @@ def filter_by_model(
     input_deduped: str,
     executor: concurrent.futures.ProcessPoolExecutor,
     output_path: str,
-    limit: int = 10000
+    limit: int = 10000,
 ):
     wet_filepaths = glob.glob(f"{input_deduped}/*.warc.wet.gz")[:limit]
     os.makedirs(output_path, exist_ok=True)
@@ -370,7 +369,7 @@ if __name__ == "__main__":
     random.seed(42)
     wet_filepaths = glob.glob("data/warc_wets/*.warc.wet.gz")
     random.shuffle(wet_filepaths)
-    wet_filepaths = wet_filepaths[:args.limit]
+    wet_filepaths = wet_filepaths[: args.limit]
     num_cpus = min(len(os.sched_getaffinity(0)), int(len(wet_filepaths) / 2))
     # Set up the executor
     executor = concurrent.futures.ProcessPoolExecutor(max_workers=num_cpus)
@@ -399,7 +398,12 @@ if __name__ == "__main__":
 
     if args.dedup:
         start_time = time.time()
-        dedup(executor, output_directory_path, output_directory_path_dedup, limit=args.limit)
+        dedup(
+            executor,
+            output_directory_path,
+            output_directory_path_dedup,
+            limit=args.limit,
+        )
         end_time = time.time()
         elapsed_time = end_time - start_time
         print(
@@ -416,7 +420,10 @@ if __name__ == "__main__":
     if args.by_model:
         start_time = time.time()
         filter_by_model(
-            output_directory_path_dedup, executor, output_directory_path_by_model, limit=args.limit
+            output_directory_path_dedup,
+            executor,
+            output_directory_path_by_model,
+            limit=args.limit,
         )
         end_time = time.time()
         elapsed_time = end_time - start_time
