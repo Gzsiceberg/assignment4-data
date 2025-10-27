@@ -192,8 +192,7 @@ def filter(
         # For each warc.wet.gz filepath, submit a job to the executor and get a future back
         wet_filename = os.path.basename(wet_filepath)
         output_wet_filepath = os.path.join(output_path, wet_filename)
-        if check_existing and os.path.exists(output_wet_filepath):
-            print(f"Skipping existing file: {output_wet_filepath}")
+        if check_existing and os.path.exists(output_wet_filepath) and os.path.getsize(output_wet_filepath) > 0:
             continue
         future = executor.submit(
             process_single_wet_file,
@@ -208,7 +207,7 @@ def filter(
     filter_counter: dict[str, int] = defaultdict(int)
     for future in tqdm(
         concurrent.futures.as_completed(futures),
-        total=len(wet_filepaths),
+        total=len(futures),
     ):
         output_file, future_filter_counter = future.result()
         for key, value in future_filter_counter.items():
