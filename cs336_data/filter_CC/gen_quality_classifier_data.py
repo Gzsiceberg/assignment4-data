@@ -1,3 +1,4 @@
+from random import shuffle
 from datasets import load_dataset
 import datasets
 from fastwarc import ArchiveIterator, WarcRecordType
@@ -68,10 +69,27 @@ if __name__ == "__main__":
     ratio = len(neg_samples) / pos_count
     print(f"samples count: {total_samples} (pos: {pos_count}, neg: {len(neg_samples)}) ratio: {ratio:.4f}")
 
-    # output_path = "data/filter_CC/cc_pos.txt"
-    # dir_path = os.path.dirname(output_path)
-    # os.makedirs(dir_path, exist_ok=True)
-    # with open(output_path, "w", encoding="utf-8") as out_f:
-    #     for item in valid_dataset:
-    #         out_f.write(item["label_text"] + "\n")
-    # print(f"Finished writing {len(valid_dataset)} samples to {output_path}.")
+    all_samples = [item["label_text"] for item in valid_dataset] + neg_samples
+    shuffle(all_samples)
+
+    train_data = all_samples[: int(0.8 * total_samples)]
+    valid_data = all_samples[int(0.8 * total_samples) : int(0.9 * total_samples)]
+    test_data = all_samples[int(0.9 * total_samples) :]
+
+    output_path = "data/filter_CC/qc_fasttext_tr.txt"
+    dir_path = os.path.dirname(output_path)
+    os.makedirs(dir_path, exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as out_f:
+        for sample in train_data:
+            out_f.write(sample + "\n")
+    print(f"Wrote training data to {output_path} with {len(train_data)} samples.")
+    output_path = "data/filter_CC/qc_fasttext_val.txt"
+    with open(output_path, "w", encoding="utf-8") as out_f:
+        for sample in valid_data:
+            out_f.write(sample + "\n")
+    print(f"Wrote validation data to {output_path} with {len(valid_data)} samples.")
+    output_path = "data/filter_CC/qc_fasttext_te.txt"
+    with open(output_path, "w", encoding="utf-8") as out_f:
+        for sample in test_data:
+            out_f.write(sample + "\n")
+    print(f"Wrote test data to {output_path} with {len(test_data)} samples")
