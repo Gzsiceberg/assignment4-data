@@ -214,10 +214,8 @@ def dedup(
         hash_counter = np.clip(hash_counter, 0, 10)
         del c
         future._result = None
-        del future
         gc.collect()
 
-    futures = []
     gc.collect()
 
     count_zero = np.sum(hash_counter == 0)
