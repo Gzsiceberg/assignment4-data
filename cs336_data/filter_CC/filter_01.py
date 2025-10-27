@@ -11,6 +11,8 @@ from warcio.warcwriter import WARCWriter
 from warcio.statusandheaders import StatusAndHeaders
 from dataclasses import dataclass
 import numpy as np
+from multiprocessing import shared_memory
+import multiprocessing
 
 
 @dataclass
@@ -103,55 +105,92 @@ def process_single_wet_file(input_path: str, output_path: str):
     return output_path, filter_counter
 
 
-def exact_line_dedup_preprocess(input_path: str, max_lines: int) -> dict[int, int]:
-    hash_counter: dict[int, int] = defaultdict(int)
-    with open(input_path, "rb") as file:
-        for record in ArchiveIterator(file):
-            if record.record_type != WarcRecordType.conversion:
-                continue
-            content_bytes = record.reader.read()
-            text = decode_content(content_bytes)
-            lines = text.splitlines()
-            for line in lines:
-                hash_index = hash(line) % max_lines
-                hash_counter[hash_index] += 1
-    return hash_counter
+def exact_line_dedup_preprocess_shared(
+    input_path: str, max_lines: int, shm_name: str
+) -> int:
+    stats_count: int = 0
+    
+    # 连接到已存在的共享内存
+    shm = shared_memory.SharedMemory(name=shm_name)
+    # 创建numpy数组视图，指向共享内存
+    hash_counter = np.ndarray((max_lines,), dtype=np.int8, buffer=shm.buf)
+    
+    try:
+        with open(input_path, "rb") as file:
+            for record in ArchiveIterator(file):
+                if record.record_type != WarcRecordType.conversion:
+                    continue
+                content_bytes = record.reader.read()
+                text = decode_content(content_bytes)
+                lines = text.splitlines()
+                
+                for line in lines:
+                    hash_index = hash(line) % max_lines
+                    # 原子操作：读取当前值，增加，然后限制最大值为10
+                    current_val = hash_counter[hash_index]
+                    if current_val < 10:
+                        hash_counter[hash_index] = current_val + 1
+                    stats_count += 1
+    finally:
+        # 不要关闭共享内存，因为其他进程还在使用
+        shm.close()
+    
+    return stats_count
 
 
 def exact_line_deduplication_single_file(
-    input_path: str, output_path: str, hash_counter, max_lines: int
+    input_path: str, output_path: str, shm_name: str, max_lines: int
 ):
+    """
+    使用共享内存进行去重的单文件处理函数
+    Args:
+        input_path: 输入文件路径
+        output_path: 输出文件路径
+        shm_name: 共享内存名称
+        max_lines: 哈希表大小
+    Returns:
+        统计信息字典
+    """
     filter_counter = defaultdict(int)
-    with open(input_path, "rb") as infile, open(output_path, "wb") as outfile:
-        writer = WARCWriter(outfile, gzip=True)
-        for record in ArchiveIterator(infile):
-            if record.record_type != WarcRecordType.conversion:
-                continue
-            content_bytes = record.reader.read()
-            text = decode_content(content_bytes)
-            lines = text.splitlines()
-            filter_counter["dedup_total"] += 1
+    
+    # 连接到共享内存
+    shm = shared_memory.SharedMemory(name=shm_name)
+    hash_counter = np.ndarray((max_lines,), dtype=np.int8, buffer=shm.buf)
+    
+    try:
+        with open(input_path, "rb") as infile, open(output_path, "wb") as outfile:
+            writer = WARCWriter(outfile, gzip=True)
+            for record in ArchiveIterator(infile):
+                if record.record_type != WarcRecordType.conversion:
+                    continue
+                content_bytes = record.reader.read()
+                text = decode_content(content_bytes)
+                lines = text.splitlines()
+                filter_counter["dedup_total"] += 1
 
-            deduped_lines = []
-            for line in lines:
-                hash_index = hash(line) % max_lines
-                if hash_counter[hash_index] == 1:
-                    deduped_lines.append(line)
-            deduped_text = "\n".join(deduped_lines)
+                deduped_lines = []
+                for line in lines:
+                    hash_index = hash(line) % max_lines
+                    if hash_counter[hash_index] == 1:
+                        deduped_lines.append(line)
+                deduped_text = "\n".join(deduped_lines)
 
-            if not deduped_text.strip():
-                filter_counter["dedup_filtered"] += 1
-                continue
-            filter_counter["dedup_passed"] += 1
+                if not deduped_text.strip():
+                    filter_counter["dedup_filtered"] += 1
+                    continue
+                filter_counter["dedup_passed"] += 1
 
-            record_id = record.record_id
-            url: str = record.headers.get("WARC-Target-URI", "unknown")  # type: ignore
-            rec = Record(
-                url=url,
-                recoder_id=record_id,
-                content=deduped_text,
-            )
-            write_record(writer, rec)
+                record_id = record.record_id
+                url: str = record.headers.get("WARC-Target-URI", "unknown")  # type: ignore
+                rec = Record(
+                    url=url,
+                    recoder_id=record_id,
+                    content=deduped_text,
+                )
+                write_record(writer, rec)
+    finally:
+        shm.close()
+    
     return filter_counter
 
 
@@ -196,66 +235,82 @@ def dedup(
     limit: int = 10000,
 ):
     all_input_files = glob.glob(os.path.join(input_path, "*.warc.wet.gz"))[:limit]
-    futures = []
+    
     print("Aggregating line counts for deduplication...")
     max_lines = 1000_000_000
-    hash_counter = np.zeros(max_lines, dtype=np.int8)
-    for file_path in all_input_files:
-        future = executor.submit(exact_line_dedup_preprocess, file_path, max_lines)
-        futures.append(future)
+    
+    nbytes = max_lines * np.dtype(np.int8).itemsize
+    print(f"Creating shared memory of size {nbytes / (1024**3):.2f} GB...")
+    shm = shared_memory.SharedMemory(create=True, size=nbytes)
+    
+    try:
+        hash_counter = np.ndarray((max_lines,), dtype=np.int8, buffer=shm.buf)
+        hash_counter[:] = 0  # 初始化为0
+        
+        futures = []
+        for file_path in all_input_files:
+            future = executor.submit(
+                exact_line_dedup_preprocess_shared, file_path, max_lines, shm.name
+            )
+            futures.append(future)
 
-    total = len(all_input_files)
-    for future in tqdm(
-        concurrent.futures.as_completed(futures),
-        total=total,
-    ):
-        count_dict = future.result()
-        for index, count in count_dict.items():
-            hash_counter[index] = min(count + hash_counter[index], 10)
+        total = len(all_input_files)
+        total_lines = 0
+        for future in tqdm(
+            concurrent.futures.as_completed(futures),
+            total=total,
+            desc="Phase 1: Counting lines",
+        ):
+            total_lines += future.result()
 
-        del count_dict
-        future._result = None
-        gc.collect()
+        print(f"Total lines processed: {total_lines:,}")
+        
+        # 打印统计信息
+        count_zero = np.sum(hash_counter == 0)
+        count_one = np.sum(hash_counter == 1)
+        count_more = np.sum(hash_counter > 1)
+        total_counts = len(hash_counter)
+        print(f"Hash counts distribution:")
+        print(f"  Zero count: {count_zero:,} ({count_zero/total_counts:.2%})")
+        print(f"  One count: {count_one:,} ({count_one/total_counts:.2%})")
+        print(f"  More than one count: {count_more:,} ({count_more/total_counts:.2%})")
 
-    gc.collect()
+        # 第二阶段：使用共享内存进行去重
+        print("Starting deduplication phase...")
+        futures = []
+        os.makedirs(output_path, exist_ok=True)
+        for file_path in all_input_files:
+            wet_filename = os.path.basename(file_path)
+            deduped_output_path = os.path.join(output_path, wet_filename)
+            future = executor.submit(
+                exact_line_deduplication_single_file,
+                file_path,
+                deduped_output_path,
+                shm.name,  # 传递共享内存名称
+                max_lines,
+            )
+            futures.append(future)
 
-    count_zero = np.sum(hash_counter == 0)
-    count_one = np.sum(hash_counter == 1)
-    count_more = np.sum(hash_counter > 1)
-    total_counts = len(hash_counter)
-    print(f"Hash counts distribution:")
-    print(f"  Zero count: {count_zero} ({count_zero/total_counts:.2%})")
-    print(f"  One count: {count_one} ({count_one/total_counts:.2%})")
-    print(f"  More than one count: {count_more} ({count_more/total_counts:.2%})")
+        filter_counter: dict[str, int] = defaultdict(int)
+        for future in tqdm(
+            concurrent.futures.as_completed(futures),
+            total=len(all_input_files),
+            desc="Phase 2: Deduplicating",
+        ):
+            counter = future.result()
+            for key, value in counter.items():
+                filter_counter[key] += value
 
-    print("Starting deduplication phase...")
-    futures = []
-    os.makedirs(output_path, exist_ok=True)
-    for file_path in all_input_files:
-        wet_filename = os.path.basename(file_path)
-        deduped_output_path = os.path.join(output_path, wet_filename)
-        future = executor.submit(
-            exact_line_deduplication_single_file,
-            file_path,
-            deduped_output_path,
-            hash_counter,
-            max_lines,
-        )
-        futures.append(future)
-
-    filter_counter: dict[str, int] = defaultdict(int)
-    for future in tqdm(
-        concurrent.futures.as_completed(futures),
-        total=len(all_input_files),
-    ):
-        counter = future.result()
-        for key, value in counter.items():
-            filter_counter[key] += value
-
-    print("Final dedup counts:")
-    total = max(filter_counter.values())
-    for key, value in filter_counter.items():
-        print(f"{key}: {value} ({value/total:.2%})")
+        print("Final dedup counts:")
+        total = max(filter_counter.values())
+        for key, value in filter_counter.items():
+            print(f"{key}: {value:,} ({value/total:.2%})")
+            
+    finally:
+        # 清理共享内存
+        shm.close()
+        shm.unlink()
+        print("Shared memory cleaned up.")
 
 
 global_model = None
