@@ -292,7 +292,8 @@ def dedup(
         total = max(filter_counter.values())
         for key, value in filter_counter.items():
             print(f"{key}: {value:,} ({value/total:.2%})")
-            
+    except Exception as e:
+        print(f"Error during deduplication: {e}")
     finally:
         # 清理共享内存
         shm.close()
