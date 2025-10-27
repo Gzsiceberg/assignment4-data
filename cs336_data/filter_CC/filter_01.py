@@ -198,6 +198,10 @@ def wait_for_futures(futures: list[concurrent.futures.Future], hash_counter: np.
         c = future.result()
         hash_counter += c
         hash_counter = np.clip(hash_counter, 0, 10)
+        del c
+        future._result = None
+        del future
+        gc.collect()
 
 
 def dedup(
@@ -211,10 +215,6 @@ def dedup(
     for file_path in all_input_files:
         future = executor.submit(exact_line_dedup_preprocess, file_path, max_lines)
         futures.append(future)
-        if len(futures) >= 16:
-            wait_for_futures(futures, hash_counter)
-            futures = []
-            gc.collect()
 
     wait_for_futures(futures, hash_counter)
     futures = []
