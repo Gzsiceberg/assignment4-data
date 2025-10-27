@@ -348,7 +348,7 @@ def process_single_wet_file_by_model(input_path: str, output_path: str):
                 content=text,
             )
             write_record(writer, rec)
-    return output_path, filter_counter
+    return filter_counter
 
 
 def filter_by_model(
@@ -374,7 +374,7 @@ def filter_by_model(
         concurrent.futures.as_completed(futures),
         total=len(wet_filepaths),
     ):
-        output_file, future_filter_counter = future.result()
+        future_filter_counter = future.result()
         for key, value in future_filter_counter.items():
             filter_counter[key] += value
 
