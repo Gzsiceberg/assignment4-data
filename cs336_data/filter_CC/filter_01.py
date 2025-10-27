@@ -136,16 +136,6 @@ def exact_line_dedup_preprocess_shared(
 def exact_line_deduplication_single_file(
     input_path: str, output_path: str, shm_name: str, max_lines: int
 ):
-    """
-    使用共享内存进行去重的单文件处理函数
-    Args:
-        input_path: 输入文件路径
-        output_path: 输出文件路径
-        shm_name: 共享内存名称
-        max_lines: 哈希表大小
-    Returns:
-        统计信息字典
-    """
     filter_counter = defaultdict(int)
     
     # 连接到共享内存
