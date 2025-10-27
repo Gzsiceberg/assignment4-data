@@ -103,8 +103,8 @@ def process_single_wet_file(input_path: str, output_path: str):
     return output_path, filter_counter
 
 
-def exact_line_dedup_preprocess(input_path: str, max_lines: int) -> np.ndarray:
-    hash_counter = np.zeros(max_lines, dtype=np.int8)
+def exact_line_dedup_preprocess(input_path: str, max_lines: int) -> dict[int, int]:
+    hash_counter: dict[int, int] = defaultdict(int)
     with open(input_path, "rb") as file:
         for record in ArchiveIterator(file):
             if record.record_type != WarcRecordType.conversion:
@@ -204,15 +204,16 @@ def dedup(
         future = executor.submit(exact_line_dedup_preprocess, file_path, max_lines)
         futures.append(future)
 
-    total = len(futures)
+    total = len(all_input_files)
     for future in tqdm(
         concurrent.futures.as_completed(futures),
         total=total,
     ):
-        c = future.result()
-        hash_counter += c
-        hash_counter = np.clip(hash_counter, 0, 10)
-        del c
+        count_dict = future.result()
+        for index, count in count_dict.items():
+            hash_counter[index] = np.min(count + hash_counter[index], 10)
+
+        del count_dict
         future._result = None
         gc.collect()
 
