@@ -114,7 +114,7 @@ def exact_line_dedup_preprocess(input_path: str, max_lines: int) -> dict[int, in
             lines = text.splitlines()
             for line in lines:
                 hash_index = hash(line) % max_lines
-                hash_counter[hash_index] = min(hash_counter[hash_index] + 1, 10)
+                hash_counter[hash_index] += 1
     return hash_counter
 
 
