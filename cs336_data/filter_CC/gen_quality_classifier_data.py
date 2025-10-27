@@ -47,7 +47,7 @@ if __name__ == "__main__":
     print(f"Positive samples count: {pos_count}")
 
     # depend on filter_01 output
-    warc_wets = glob.glob("data/filtered_01/*.warc.wet.gz")
+    warc_wets = glob.glob("data/filtered_01_deduped/*.warc.wet.gz")
     first_one = warc_wets[0]
     line_count = 0
     with open(first_one, "rb") as f:

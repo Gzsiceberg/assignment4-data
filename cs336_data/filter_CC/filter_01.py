@@ -116,7 +116,10 @@ def exact_line_dedup_preprocess(input_path: str, max_lines: int) -> np.ndarray:
                 line_count[line_hash] += 1
     return line_count
 
-def exact_line_deduplication_single_file(input_path: str, output_path: str, line_count, max_lines: int):
+
+def exact_line_deduplication_single_file(
+    input_path: str, output_path: str, line_count, max_lines: int
+):
     filter_counter = defaultdict(int)
     with open(input_path, "rb") as infile, open(output_path, "wb") as outfile:
         writer = WARCWriter(outfile, gzip=True)
@@ -126,36 +129,38 @@ def exact_line_deduplication_single_file(input_path: str, output_path: str, line
             content_bytes = record.reader.read()
             text = decode_content(content_bytes)
             lines = text.splitlines()
-            filter_counter["dedup_total"] += 1
+            filter_counter["dedup_total"] += len(lines)
 
             deduped_lines = []
             for line in lines:
                 line_hash = hash(line) % max_lines
                 if line_count[line_hash] == 1:
                     deduped_lines.append(line)
+                else:
+                    filter_counter["dedup_filtered"] += 1
             deduped_text = "\n".join(deduped_lines)
 
             if not deduped_text.strip():
-                filter_counter["dedup_filtered"] += 1
+                filter_counter["dedup_filtered"] += len(deduped_lines)
                 continue
-            filter_counter["dedup_passed"] += 1
+            filter_counter["dedup_passed"] += len(deduped_lines)
 
             record_id = record.record_id
             url: str = record.headers.get("WARC-Target-URI", "unknown")  # type: ignore
             rec = Record(
                 url=url,
                 recoder_id=record_id,
-                content=text,
+                content=deduped_text,
             )
             write_record(writer, rec)
     return filter_counter
 
 
-def filter(wet_filepaths, executor, output_directory_path) -> dict[str, int]:
+def filter(wet_filepaths, executor, output_directory_path):
     futures = []
     for wet_filepath in wet_filepaths:
         # For each warc.wet.gz filepath, submit a job to the executor and get a future back
-        wet_filename = str(pathlib.Path(wet_filepath).name)
+        wet_filename = os.path.basename(wet_filepath)
         future = executor.submit(
             process_single_wet_file,
             wet_filepath,
@@ -174,16 +179,21 @@ def filter(wet_filepaths, executor, output_directory_path) -> dict[str, int]:
         output_file, future_filter_counter = future.result()
         for key, value in future_filter_counter.items():
             filter_counter[key] += value
-    return filter_counter
 
-def dedup(executor, output_directory_path) -> dict[str, int]:
+    print("Final filter counts:")
+    total = max(filter_counter.values())
+    for key, value in filter_counter.items():
+        print(f"{key}: {value} ({value/total:.2%})")
+
+
+def dedup(executor, output_directory_path):
     all_output_files = glob.glob(os.path.join(output_directory_path, "*.warc.wet.gz"))
     futures = []
     max_lines = 100_000_000
     for file_path in all_output_files:
         future = executor.submit(exact_line_dedup_preprocess, file_path, max_lines)
         futures.append(future)
-    
+
     print("Aggregating line counts for deduplication...")
     total_line_count = np.zeros(max_lines, dtype=int)
     for future in tqdm(
@@ -192,7 +202,7 @@ def dedup(executor, output_directory_path) -> dict[str, int]:
     ):
         line_count = future.result()
         total_line_count += line_count
-    
+
     print("Starting deduplication phase...")
     futures = []
     deduped_output_directory_path = "data/filtered_01_deduped/"
@@ -205,7 +215,7 @@ def dedup(executor, output_directory_path) -> dict[str, int]:
             file_path,
             deduped_output_path,
             total_line_count,
-            max_lines
+            max_lines,
         )
         futures.append(future)
 
@@ -217,17 +227,117 @@ def dedup(executor, output_directory_path) -> dict[str, int]:
         counter = future.result()
         for key, value in counter.items():
             filter_counter[key] += value
-    return filter_counter
+
+    print("Final dedup counts:")
+    total = max(filter_counter.values())
+    for key, value in filter_counter.items():
+        print(f"{key}: {value} ({value/total:.2%})")
+
+
+global_model = None
+
+
+def predict_c4_like(text: str) -> tuple[str, float]:
+    from cs336_data.gen_fasttext import preprocess_text
+    import fasttext
+
+    text = preprocess_text(text)
+    global global_model
+    if global_model is None:
+        dir_path = os.path.dirname(os.path.abspath(__file__))
+        global_model = fasttext.load_model(
+            os.path.join(dir_path, "../../model/qc_model.bin")
+        )
+    model = global_model
+    output = model.predict(text)
+    label = output[0][0].replace("__label__", "")  # type: ignore
+    confidence = output[1][0]
+    return "c4" if label == "positive" else "cc", confidence
+
+
+def process_single_wet_file_by_model(input_path: str, output_path: str):
+    filter_counter = defaultdict(int)
+    with open(input_path, "rb") as infile, open(output_path, "wb") as warc_stream:
+        writer = WARCWriter(warc_stream, gzip=True)
+        for i, record in enumerate(ArchiveIterator(infile)):
+            if record.record_type != WarcRecordType.conversion:
+                continue
+            record_id = record.record_id
+            content_bytes = record.reader.read()
+            text = decode_content(content_bytes)
+
+            filter_counter["01_total"] += 1
+            pred_label, confidence = predict_c4_like(text)
+            if pred_label != "c4":
+                filter_counter["02_filtered_out"] += 1
+                continue
+
+            filter_counter["03_passed"] += 1
+
+            url: str = record.headers.get("WARC-Target-URI", "unknown")  # type: ignore
+            rec = Record(
+                url=url,
+                recoder_id=record_id,
+                content=text,
+            )
+            write_record(writer, rec)
+    return output_path, filter_counter
+
+
+def filter_by_model(
+    output_directory_path_deduped: str, executor: concurrent.futures.ProcessPoolExecutor
+):
+    wet_filepaths = glob.glob(f"{output_directory_path_deduped}/*.warc.wet.gz")
+    output_directory_path = "data/filtered_01_by_model/"
+
+    os.makedirs(output_directory_path, exist_ok=True)
+    futures = []
+    for wet_filepath in wet_filepaths:
+        wet_filename = str(pathlib.Path(wet_filepath).name)
+        future = executor.submit(
+            process_single_wet_file_by_model,
+            wet_filepath,
+            os.path.join(output_directory_path, wet_filename),
+        )
+        futures.append(future)
+
+    filter_counter = defaultdict(int)
+    for future in tqdm(
+        concurrent.futures.as_completed(futures),
+        total=len(wet_filepaths),
+    ):
+        output_file, future_filter_counter = future.result()
+        for key, value in future_filter_counter.items():
+            filter_counter[key] += value
+
+    print("Final filter counts:")
+    total = filter_counter["01_total"]
+    for key, value in filter_counter.items():
+        print(f"{key}: {value} ({value/total:.2%})")
+
 
 if __name__ == "__main__":
     import glob
     from rich import print
     import argparse
     import time
+
     arg_parser = argparse.ArgumentParser()
-    arg_parser.add_argument("--filter", action="store_true", help="Whether to apply filtering")
-    arg_parser.add_argument("--dedup", action="store_true", help="Whether to apply deduplication")
-    arg_parser.add_argument("--limit", type=int, default=None, help="Limit the number of WET files to process")
+    arg_parser.add_argument(
+        "--filter", action="store_true", help="Whether to apply filtering"
+    )
+    arg_parser.add_argument(
+        "--dedup", action="store_true", help="Whether to apply deduplication"
+    )
+    arg_parser.add_argument(
+        "--by_model", action="store_true", help="Whether to apply filtering by model"
+    )
+    arg_parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Limit the number of WET files to process",
+    )
     args = arg_parser.parse_args()
 
     wet_filepaths = glob.glob("data/warc_wets/*.warc.wet.gz")
@@ -237,31 +347,35 @@ if __name__ == "__main__":
     random.seed(42)
     random.shuffle(wet_filepaths)
     if args.limit is not None:
-        wet_filepaths = wet_filepaths[:args.limit]
+        wet_filepaths = wet_filepaths[: args.limit]
     output_directory_path = "data/filtered_01/"
+    output_directory_path_dedup = "data/filtered_01_deduped/"
     print(f"Processing {len(wet_filepaths)} WET files using {num_cpus} CPUs.")
     os.makedirs(output_directory_path, exist_ok=True)
 
     if args.filter:
         start_time = time.time()
-        filter_counter = filter(wet_filepaths, executor, output_directory_path)
-
-        print("Final filter counts:")
-        total = max(filter_counter.values())
-        for key, value in filter_counter.items():
-            print(f"{key}: {value} ({value/total:.2%})")
+        filter(wet_filepaths, executor, output_directory_path)
         end_time = time.time()
         elasped_time = end_time - start_time
-        print(f"Filtering took {elasped_time:.2f} seconds. Throughput: {len(wet_filepaths)/elasped_time:.2f} WET files/second.")
-    
+        print(
+            f"Filtering took {elasped_time:.2f} seconds. Throughput: {len(wet_filepaths)/elasped_time:.2f} WET files/second."
+        )
+
     if args.dedup:
         start_time = time.time()
-        filter_counter = dedup(executor, output_directory_path)
-        print("Final dedup counts:")
-        total = max(filter_counter.values())
-        for key, value in filter_counter.items():
-            print(f"{key}: {value} ({value/total:.2%})")
+        dedup(executor, output_directory_path)
         end_time = time.time()
         elasped_time = end_time - start_time
-        print(f"Deduplication took {elasped_time:.2f} seconds. Throughput: {len(wet_filepaths)/elasped_time:.2f} WET files/second.")
-    
+        print(
+            f"Deduplication took {elasped_time:.2f} seconds. Throughput: {len(wet_filepaths)/elasped_time:.2f} WET files/second."
+        )
+
+    if args.by_model:
+        start_time = time.time()
+        filter_by_model(output_directory_path_dedup, executor)
+        end_time = time.time()
+        elasped_time = end_time - start_time
+        print(
+            f"Filtering by model took {elasped_time:.2f} seconds. Throughput: {len(wet_filepaths)/elasped_time:.2f} WET files/second."
+        )
