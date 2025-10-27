@@ -211,7 +211,7 @@ def dedup(
     ):
         count_dict = future.result()
         for index, count in count_dict.items():
-            hash_counter[index] = np.min(count + hash_counter[index], 10)
+            hash_counter[index] = min(count + hash_counter[index], 10)
 
         del count_dict
         future._result = None
