@@ -189,9 +189,9 @@ def filter(
 
 
 def dedup(
-    executor: concurrent.futures.ProcessPoolExecutor, input_path: str, output_path: str
+    executor: concurrent.futures.ProcessPoolExecutor, input_path: str, output_path: str, limit: int = 10000
 ):
-    all_input_files = glob.glob(os.path.join(input_path, "*.warc.wet.gz"))
+    all_input_files = glob.glob(os.path.join(input_path, "*.warc.wet.gz"))[:limit]
     futures = []
     max_lines = 100_000_000
     for file_path in all_input_files:
@@ -301,8 +301,9 @@ def filter_by_model(
     input_deduped: str,
     executor: concurrent.futures.ProcessPoolExecutor,
     output_path: str,
+    limit: int = 10000
 ):
-    wet_filepaths = glob.glob(f"{input_deduped}/*.warc.wet.gz")
+    wet_filepaths = glob.glob(f"{input_deduped}/*.warc.wet.gz")[:limit]
     os.makedirs(output_path, exist_ok=True)
     futures = []
     for wet_filepath in wet_filepaths:
@@ -348,7 +349,7 @@ if __name__ == "__main__":
     arg_parser.add_argument(
         "--limit",
         type=int,
-        default=None,
+        default=100000,
         help="Limit the number of WET files to process",
     )
     args = arg_parser.parse_args()
@@ -359,8 +360,7 @@ if __name__ == "__main__":
     executor = concurrent.futures.ProcessPoolExecutor(max_workers=num_cpus)
     random.seed(42)
     random.shuffle(wet_filepaths)
-    if args.limit is not None:
-        wet_filepaths = wet_filepaths[: args.limit]
+    wet_filepaths = wet_filepaths[:args.limit]
     output_directory_path = "data/filtered_01/"
     output_directory_path_dedup = "data/filtered_01_deduped/"
     output_directory_path_by_model = "data/filtered_01_by_model/"
@@ -378,7 +378,7 @@ if __name__ == "__main__":
 
     if args.dedup:
         start_time = time.time()
-        dedup(executor, output_directory_path, output_directory_path_dedup)
+        dedup(executor, output_directory_path, output_directory_path_dedup, limit=args.limit)
         end_time = time.time()
         elapsed_time = end_time - start_time
         print(
@@ -388,7 +388,7 @@ if __name__ == "__main__":
     if args.by_model:
         start_time = time.time()
         filter_by_model(
-            output_directory_path_dedup, executor, output_directory_path_by_model
+            output_directory_path_dedup, executor, output_directory_path_by_model, limit=args.limit
         )
         end_time = time.time()
         elapsed_time = end_time - start_time
