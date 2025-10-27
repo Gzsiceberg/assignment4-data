@@ -57,18 +57,37 @@ fi
 
 # 使用 aria2c 进行并发下载
 # aria2c 配置：多线程、断点续传、自动重试
+# aria2c \
+#     --input-file="$TEMP_LIST" \
+#     --max-concurrent-downloads="$PARALLEL_JOBS" \
+#     --max-connection-per-server=4 \
+#     --min-split-size=1M \
+#     --split=4 \
+#     --continue=true \
+#     --max-tries=5 \
+#     --retry-wait=3 \
+#     --timeout=60 \
+#     --connect-timeout=30 \
+#     --console-log-level=notice \
+#     --summary-interval=10
+
 aria2c \
     --input-file="$TEMP_LIST" \
-    --max-concurrent-downloads="$PARALLEL_JOBS" \
-    --max-connection-per-server=4 \
-    --min-split-size=1M \
-    --split=4 \
+    --max-concurrent-downloads="${PARALLEL_JOBS:-3}" \
+    --max-connection-per-server=1 \
+    --split=1 \
+    --min-split-size=16M \
     --continue=true \
-    --max-tries=5 \
-    --retry-wait=3 \
+    --max-tries=20 \
+    --retry-wait=5 \
+    --retry-on-http-error=403,429,500,502,503,504 \
+    --user-agent="MyResearchBot/1.0 (contact: aflashsheng@gmail.com)" \
     --timeout=60 \
     --connect-timeout=30 \
-    --console-log-level=notice \
-    --summary-interval=10
+    --summary-interval=10 \
+    --enable-http-keep-alive=true \
+    --enable-http-pipelining=false \
+    --max-overall-download-limit=60M \
+    --file-allocation=none
 
 echo "下载完成！"
