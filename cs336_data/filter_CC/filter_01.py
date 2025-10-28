@@ -328,8 +328,12 @@ def predict_c4_like(text: str) -> tuple[str, float]:
 
 def process_single_wet_file_by_model(input_path: str, output_path: str, threshold: float = 0.5):
     filter_counter = defaultdict(int)
+    output_name = os.path.basename(input_path)
+    output_dir = os.path.dirname(output_path)
+    score_file_path = os.path.join(output_dir, output_name + ".scores.npy")
     with open(input_path, "rb") as infile, open(output_path, "wb") as warc_stream:
         writer = WARCWriter(warc_stream, gzip=True)
+        scores: list[float] = []
         for i, record in enumerate(ArchiveIterator(infile)):
             if record.record_type != WarcRecordType.conversion:
                 continue
@@ -346,6 +350,7 @@ def process_single_wet_file_by_model(input_path: str, output_path: str, threshol
                 continue
 
             filter_counter["03_passed"] += 1
+            scores.append(pos_score)
 
             url: str = record.headers.get("WARC-Target-URI", "unknown")  # type: ignore
             rec = Record(
@@ -354,6 +359,7 @@ def process_single_wet_file_by_model(input_path: str, output_path: str, threshol
                 content=text,
             )
             write_record(writer, rec)
+    np.save(score_file_path, np.array(scores, dtype=np.float32))
     return filter_counter
 
 
