@@ -326,7 +326,7 @@ def predict_c4_like(text: str) -> tuple[str, float]:
     return "c4" if label == "positive" else "cc", confidence
 
 
-def process_single_wet_file_by_model(input_path: str, output_path: str):
+def process_single_wet_file_by_model(input_path: str, output_path: str, threshold: float = 0.5):
     filter_counter = defaultdict(int)
     with open(input_path, "rb") as infile, open(output_path, "wb") as warc_stream:
         writer = WARCWriter(warc_stream, gzip=True)
@@ -339,7 +339,9 @@ def process_single_wet_file_by_model(input_path: str, output_path: str):
 
             filter_counter["01_total"] += 1
             pred_label, confidence = predict_c4_like(text)
-            if pred_label != "c4":
+            pos_score = confidence if pred_label == "c4" else 1 - confidence
+
+            if pos_score < threshold:
                 filter_counter["02_filtered_out"] += 1
                 continue
 
@@ -360,6 +362,7 @@ def filter_by_model(
     executor: concurrent.futures.ProcessPoolExecutor,
     output_path: str,
     limit: int = 10000,
+    threshold: float = 0.5,
 ):
     wet_filepaths = glob.glob(f"{input_deduped}/*.warc.wet.gz")[:limit]
     os.makedirs(output_path, exist_ok=True)
@@ -370,6 +373,7 @@ def filter_by_model(
             process_single_wet_file_by_model,
             wet_filepath,
             os.path.join(output_path, wet_filename),
+            threshold,
         )
         futures.append(future)
 
@@ -411,6 +415,12 @@ if __name__ == "__main__":
         "--check_existing",
         action="store_true",
         help="Whether to skip processing files that already exist in the output directory",
+    )
+    arg_parser.add_argument(
+        "--threshold",
+        type=float,
+        default=0.5,
+        help="Threshold for filtering by model",
     )
     arg_parser.add_argument(
         "--limit",
@@ -489,6 +499,7 @@ if __name__ == "__main__":
             executor,
             output_directory_path_by_model,
             limit=args.limit,
+            threshold=args.threshold,
         )
         end_time = time.time()
         elapsed_time = end_time - start_time
