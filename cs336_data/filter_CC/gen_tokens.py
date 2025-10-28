@@ -14,31 +14,23 @@ from tqdm import tqdm
 tokenizer = AutoTokenizer.from_pretrained("gpt2")
 
 
-def tokenize_line_and_add_eos(line):
+def tokenize_and_add_eos(line):
     # 添加 verbose=False 来禁用长度警告，因为我们只是tokenize，不会输入模型
     return tokenizer.encode(line, verbose=False) + [tokenizer.eos_token_id]
-
-def tokenize_lines(lines):
-    all_tokens = []
-    for line in lines:
-        tokens = tokenize_line_and_add_eos(line)
-        all_tokens.extend(tokens)
-    return all_tokens
 
 
 def gen_c4_100(is_validation: bool = True):
     dataset = load_dataset("allenai/paloma", "c4_100_domains")
     valid_dataset: datasets.Dataset = dataset["val"]  # type: ignore
     if not is_validation:
-        valid_dataset = dataset["test"]
+        valid_dataset = dataset["test"] # type: ignore
 
     sum_tokens = 0
     count = 0
     max_samples = 100
     for t, data in tqdm(enumerate(valid_dataset), total=max_samples):
         text: str = data["text"] # type: ignore
-        lines = text.splitlines(keepends=True)
-        tokens = tokenize_lines(lines)
+        tokens = tokenize_and_add_eos(text)
         sum_tokens += len(tokens)
         count += 1
         if t >= max_samples - 1:
@@ -54,8 +46,7 @@ def gen_c4_100(is_validation: bool = True):
     idx: int = 0
     for data in tqdm(valid_dataset, total=len(valid_dataset)):
         text = data["text"] # type: ignore
-        lines = text.splitlines(keepends=True)
-        tokens = tokenize_lines(lines)
+        tokens = tokenize_and_add_eos(text)
         mm[idx : idx + len(tokens)] = tokens
         idx += len(tokens)
     print(f"Total tokens written: {idx:,}")
@@ -83,8 +74,7 @@ def process_single_wet_file(input_path: str) -> list[int]:
             record_id = record.record_id
             content_bytes = record.reader.read()
             text = decode_content(content_bytes)
-            lines = text.splitlines(keepends=True)
-            tokens.extend(tokenize_lines(lines))
+            tokens.extend(tokenize_and_add_eos(text))
     return tokens
 
 
