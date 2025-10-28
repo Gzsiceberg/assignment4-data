@@ -88,7 +88,7 @@ def gen_cc(input_path: str):
     os.makedirs(output_dir, exist_ok=True)
     num_cpus = os.cpu_count() or 4
 
-    sample_file_count = min(10, len(wet_filepaths))
+    sample_file_count = min(50, len(wet_filepaths))
     sum_tokens = 0
     for wet_filepath in tqdm(wet_filepaths[:sample_file_count]):
         tokens = process_single_wet_file(wet_filepath)
