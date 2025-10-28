@@ -4,9 +4,9 @@ import numpy as np
 import datasets
 import os
 import gc
-from rich.progress import track
 from rich import print
 from fastwarc.warc import ArchiveIterator, WarcRecordType
+from tqdm import tqdm
 
 tokenizer = AutoTokenizer.from_pretrained("gpt2")
 
@@ -23,14 +23,16 @@ def tokenize_lines(lines):
     return all_tokens
 
 
-def gen_c4_100():
+def gen_c4_100(is_validation: bool = True):
     dataset = load_dataset("allenai/paloma", "c4_100_domains")
     valid_dataset: datasets.Dataset = dataset["val"]  # type: ignore
+    if not is_validation:
+        valid_dataset = dataset["test"]
 
     sum_tokens = 0
     count = 0
     max_samples = 100
-    for t, data in track(enumerate(valid_dataset), total=max_samples):
+    for t, data in tqdm(enumerate(valid_dataset), total=max_samples):
         text: str = data["text"] # type: ignore
         lines = text.splitlines(keepends=True)
         tokens = tokenize_lines(lines)
@@ -41,13 +43,13 @@ def gen_c4_100():
     estimated_tokens = int(sum_tokens * (len(valid_dataset) / count) * 1.2)
     print(f"Estimated tokens: {estimated_tokens:,}")
 
-    output_file = "data/filter_CC/gen_tokens/c4_100_val.npy"
+    output_file = f"data/filter_CC/gen_tokens/c4_100_{'val' if is_validation else 'test'}.npy"
     dir_output = os.path.dirname(output_file)
     os.makedirs(dir_output, exist_ok=True)
     mm = np.memmap(output_file, dtype=np.uint16, mode="w+", shape=(estimated_tokens,))
 
     idx: int = 0
-    for data in track(valid_dataset, total=len(valid_dataset)):
+    for data in tqdm(valid_dataset, total=len(valid_dataset)):
         text = data["text"] # type: ignore
         lines = text.splitlines(keepends=True)
         tokens = tokenize_lines(lines)
@@ -91,7 +93,7 @@ def gen_cc(input_path: str):
 
     sample_file_count = min(10, len(wet_filepaths))
     sum_tokens = 0
-    for wet_filepath in wet_filepaths[:sample_file_count]:
+    for wet_filepath in tqdm(wet_filepaths[:sample_file_count]):
         for record_id, lines in process_single_wet_file(wet_filepath):
             tokens = tokenize_lines(lines)
             sum_tokens += len(tokens)
@@ -105,7 +107,7 @@ def gen_cc(input_path: str):
     # pool = multiprocessing.Pool(multiprocessing.cpu_count())
 
     idx = 0
-    for wet_filepath in wet_filepaths:
+    for wet_filepath in tqdm(wet_filepaths):
         for record_id, lines in process_single_wet_file(wet_filepath):
             tokens = tokenize_lines(lines)
             mm[idx : idx + len(tokens)] = tokens
@@ -135,6 +137,7 @@ if __name__ == "__main__":
 
     if args.c4:
         gen_c4_100()
+        gen_c4_100(is_validation=False)
     
     if args.cc:
         gen_cc("data/filtered_01_by_model/")
