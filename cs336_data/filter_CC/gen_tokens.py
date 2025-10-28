@@ -1,8 +1,11 @@
+import os
+# 在导入 tokenizers 之前设置环境变量，避免 fork 警告
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 from transformers import AutoTokenizer
 from datasets import load_dataset
 import numpy as np
 import datasets
-import os
 import gc
 from rich import print
 from fastwarc.warc import ArchiveIterator, WarcRecordType
@@ -70,8 +73,9 @@ def gen_c4_100(is_validation: bool = True):
     print(f"Truncated file from {pre_size:,} bytes to {after_size:,} bytes.")
 
 
-def process_single_wet_file(input_path: str):
+def process_single_wet_file(input_path: str) -> list[int]:
     from cs336_data.filter_CC.filter_01 import decode_content
+    tokens: list[int] = []
     with open(input_path, "rb") as infile:
         for record in ArchiveIterator(infile):
             if record.record_type != WarcRecordType.conversion:
@@ -80,38 +84,45 @@ def process_single_wet_file(input_path: str):
             content_bytes = record.reader.read()
             text = decode_content(content_bytes)
             lines = text.splitlines(keepends=True)
-            yield record_id, lines
+            tokens.extend(tokenize_lines(lines))
+    return tokens
 
 
 def gen_cc(input_path: str):
     import glob
-    import multiprocessing
+    import concurrent.futures
+
     wet_filepaths = glob.glob(f"{input_path}/*.warc.wet.gz")
     output_file = "data/filter_CC/gen_tokens/cc_tokens.npy"
     output_dir = os.path.dirname(output_file)
     os.makedirs(output_dir, exist_ok=True)
+    num_cpus = os.cpu_count() or 4
 
     sample_file_count = min(10, len(wet_filepaths))
     sum_tokens = 0
     for wet_filepath in tqdm(wet_filepaths[:sample_file_count]):
-        for record_id, lines in process_single_wet_file(wet_filepath):
-            tokens = tokenize_lines(lines)
-            sum_tokens += len(tokens)
+        tokens = process_single_wet_file(wet_filepath)
+        sum_tokens += len(tokens)
     average_tokens_per_file = sum_tokens / sample_file_count
     estimated_tokens = int(average_tokens_per_file * len(wet_filepaths) * 1.2)
+    # Set up the executor
+    executor = concurrent.futures.ProcessPoolExecutor(max_workers=num_cpus)
     print(f"Estimated tokens: {estimated_tokens:,}")
 
     dir_output = os.path.dirname(output_file)
     os.makedirs(dir_output, exist_ok=True)
     mm = np.memmap(output_file, dtype=np.uint16, mode="w+", shape=(estimated_tokens,))
-    # pool = multiprocessing.Pool(multiprocessing.cpu_count())
 
-    idx = 0
+    futures = []
     for wet_filepath in tqdm(wet_filepaths):
-        for record_id, lines in process_single_wet_file(wet_filepath):
-            tokens = tokenize_lines(lines)
-            mm[idx : idx + len(tokens)] = tokens
-            idx += len(tokens)
+        future = executor.submit(process_single_wet_file, wet_filepath)
+        futures.append(future)
+    
+    idx = 0
+    for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures)):
+        tokens = future.result()
+        mm[idx : idx + len(tokens)] = tokens
+        idx += len(tokens)
     print(f"Total tokens written: {idx:,}")
 
     mm.flush()
